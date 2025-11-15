@@ -7,3 +7,6 @@ You will need the following files:
 4. Set of motifs for each transcription factor that suggests a sequence should be technically open, also in a txt file.
 
 Move all of these under `data/`.
+
+## Requirements setup
+Create your virtualenv, and then install using `pip install -r requirements.txt`.
