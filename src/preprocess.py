@@ -1,4 +1,4 @@
-'''
+"""
 preprocess.py.
 
 Preprocess script for getting positive and negative examples
@@ -11,68 +11,106 @@ Outputs to data/tf_sites/ by default, where there is a folder per each TF.
 For now, we will only have the positive examples, but eventually,
 we will also add negative examples. The negative examples need to be
 found from motifs as well.
-'''
+"""
 
 import argparse
 import os
+import pyranges as pr
+import pandas as pd
+from enum import Enum
+from tqdm import tqdm
+
 
 def get_args():
     parser = argparse.ArgumentParser(
-        description='Preprocess script for getting positive and negative examples of binding sites.'
+        description="Preprocess script for getting positive and negative examples of binding sites."
     )
     parser.add_argument(
-        '--chip_seq_file',
+        "--chip_seq_file",
         type=str,
-        default='data/wgEncodeRegTfbsClusteredV3.GM12878.merged.bed',
-        help='Path to the ChIP-seq data file.'
+        default="data/wgEncodeRegTfbsClusteredV3.GM12878.merged.bed",
+        help="Path to the ChIP-seq data file.",
     )
     parser.add_argument(
-        '--true_tf_file',
+        "--true_tf_file",
         type=str,
-        default='data/factorbookMotifPos.txt',
-        help='Path to the file containing true transcription factor binding sites.'
+        default="data/factorbookMotifPos.txt",
+        help="Path to the file containing true transcription factor binding sites.",
     )
     parser.add_argument(
-        '--output_dir',
+        "--output_dir",
         type=str,
-        default='data/tf_sites',
-        help='Directory to save the output files.'
+        default="data/tf_sites",
+        help="Directory to save the output files.",
     )
     return parser.parse_args()
 
 
+# create an enum for the column names to reuse
+class TFColumns(Enum):
+    INDEX = "index"
+    CHROM = "chrom"
+    START = "start"
+    END = "end"
+    TF_NAME = "tf_name"
+    SCORE = "score"
+    STRAND = "strand"
+
+
 def generate_positive_examples(true_tf_file, output_dir):
-    '''
+    """
     Generate positive examples from the true TF binding sites file.
-    '''
-    tf_sites = {}
-    with open(true_tf_file, 'r') as f:
-        for line in f:
-            parts = line.strip().split('\t')
-            
-            chrom = parts[1]
-            start = int(parts[2])
-            end = int(parts[3])
-            tf_name = parts[4]
-            score = parts[5]
-            strand = parts[6]
+    """
+    pos_tf_sites = pr.PyRanges(
+        pd.read_table(
+            true_tf_file,
+            names=[
+                TFColumns.INDEX.value,
+                TFColumns.CHROM.value,
+                TFColumns.START.value,
+                TFColumns.END.value,
+                TFColumns.TF_NAME.value,
+                TFColumns.SCORE.value,
+                TFColumns.STRAND.value,
+            ],
+        )
+    )
 
-            if tf_name not in tf_sites:
-                tf_sites[tf_name] = []
-            tf_sites[tf_name].append((chrom, start, end, score, strand))
+    tf_names = pos_tf_sites[TFColumns.TF_NAME.value].unique().tolist()
 
-    for tf_name, sites in tf_sites.items():
-
+    for tf_name in tqdm(tf_names):
         dir_path = os.path.join(output_dir, tf_name)
+
+        if os.path.exists(f"{dir_path}/positive_examples.txt"):
+            print(f"Positive examples for {tf_name} already exist. Skipping...")
+            continue
+
+        # now we select for this TF
+        tf_sites = pos_tf_sites[pos_tf_sites[TFColumns.TF_NAME.value] == tf_name]
+
         os.makedirs(dir_path, exist_ok=True)
 
-        with open(f'{dir_path}/positive_examples.txt', 'w') as out_f:
-            for site in sites:
-                chrom, start, end, score, strand = site
-                out_f.write(f'{chrom}\t{start}\t{end}\t{score}\t{strand}\n')
+        with open(f"{dir_path}/positive_examples.txt", "w") as out_f:
+            for _, site in tf_sites.iterrows():
+                chrom = site[TFColumns.CHROM.value]
+                start = site[TFColumns.START.value]
+                end = site[TFColumns.END.value]
+                score = site[TFColumns.SCORE.value]
+                strand = site[TFColumns.STRAND.value]
+                out_f.write(f"{chrom}\t{start}\t{end}\t{score}\t{strand}\n")
 
-    print(f'Generated positive examples for {len(tf_sites)} transcription factors.')
+    print(f"Generated positive examples for {len(tf_names)} transcription factors.")
+    return pos_tf_sites
 
-if __name__ == '__main__':
+
+def generate_negative_examples(pos_tf_sites, chip_seq_file, output_dir):
+    """
+    Generate negative examples from the ChIP-seq data file.
+    """
+
+
+if __name__ == "__main__":
     args = get_args()
-    generate_positive_examples(args.true_tf_file, args.output_dir)
+    pos_tf_sites = generate_positive_examples(args.true_tf_file, args.output_dir)
+
+    generate_negative_examples(pos_tf_sites, args.chip_seq_file, args.output_dir)

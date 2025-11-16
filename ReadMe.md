@@ -18,3 +18,11 @@ then, you can install the requirements using:
 pip install -r requirements.txt
 ```
 Note: we require python version 3.12 for the pyranges1 package.
+
+## Contributing
+We use some autoformatters, such as `black` to ensure readability.
+Run:
+```
+pip install pre-commit
+pre-commit install
+```
