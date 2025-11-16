@@ -6,11 +6,6 @@ of binding sites, having specified the active regulatory regions
 and the true regions of binding sites.
 
 Outputs to data/tf_sites/ by default, where there is a folder per each TF.
-
-** TODO **
-For now, we will only have the positive examples, but eventually,
-we will also add negative examples. The negative examples need to be
-found from motifs as well.
 """
 
 import argparse
@@ -48,13 +43,14 @@ def get_args():
 
 # create an enum for the column names to reuse
 class TFColumns(Enum):
-    INDEX = "index"
-    CHROM = "chrom"
-    START = "start"
-    END = "end"
-    TF_NAME = "tf_name"
-    SCORE = "score"
-    STRAND = "strand"
+    INDEX = "Index"
+    CHROM = "Chromosome"
+    START = "Start"
+    END = "End"
+    TF_NAME = "TF_Name"
+    SCORE = "Score"
+    STRAND = "Strand"
+    CHROM_INDEX = "Chrom_Index"  # for the chip-seq data, chrx.y, meaningless
 
 
 def generate_positive_examples(true_tf_file, output_dir):
@@ -82,7 +78,6 @@ def generate_positive_examples(true_tf_file, output_dir):
         dir_path = os.path.join(output_dir, tf_name)
 
         if os.path.exists(f"{dir_path}/positive_examples.txt"):
-            print(f"Positive examples for {tf_name} already exist. Skipping...")
             continue
 
         # now we select for this TF
@@ -107,6 +102,44 @@ def generate_negative_examples(pos_tf_sites, chip_seq_file, output_dir):
     """
     Generate negative examples from the ChIP-seq data file.
     """
+    chip_seq_sites = pr.PyRanges(
+        pd.read_table(
+            chip_seq_file,
+            names=[
+                TFColumns.CHROM.value,
+                TFColumns.START.value,
+                TFColumns.END.value,
+                TFColumns.CHROM_INDEX.value,
+            ],
+        )
+    )
+
+    tf_names = pos_tf_sites[TFColumns.TF_NAME.value].unique().tolist()
+
+    for tf_name in tqdm(tf_names):
+        dir_path = os.path.join(output_dir, tf_name)
+
+        if os.path.exists(f"{dir_path}/negative_examples.txt"):
+            continue
+
+        # now we select for this TF
+        tf_pos_sites = pos_tf_sites[pos_tf_sites[TFColumns.TF_NAME.value] == tf_name]
+
+        # find all the sites in chip-seq that don't overlap
+        # with some positive site
+        negative_sites = chip_seq_sites.overlap(
+            tf_pos_sites,
+            invert=True,
+        )
+
+        with open(f"{dir_path}/negative_examples.txt", "w") as out_f:
+            for _, site in negative_sites.iterrows():
+                chrom = site.Chromosome
+                start = site.Start
+                end = site.End
+                out_f.write(f"{chrom}\t{start}\t{end}\n")
+
+    print(f"Generated negative examples for {len(tf_names)} transcription factors.")
 
 
 if __name__ == "__main__":
