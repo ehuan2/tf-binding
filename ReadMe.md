@@ -9,4 +9,12 @@ You will need the following files:
 Move all of these under `data/`.
 
 ## Requirements setup
-Create your virtualenv, and then install using `pip install -r requirements.txt`.
+Due to the `pyranges` environment, we suggest to use conda, with the following:
+```
+conda create -n tfbinding python=3.12
+```
+then, you can install the requirements using:
+```
+pip install -r requirements.txt
+```
+Note: we require python version 3.12 for the pyranges1 package.
