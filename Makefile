@@ -10,3 +10,6 @@ clean:
 
 preprocess:
 	python src/preprocess.py
+
+run_simple:
+	python src/main.py --config real_configs/simple.yaml
