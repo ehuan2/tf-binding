@@ -10,10 +10,8 @@ Outputs to data/tf_sites/ by default, where there is a folder per each TF.
 
 import argparse
 import os
-import pyranges as pr
-import pandas as pd
-from enum import Enum
 from tqdm import tqdm
+from helpers import TFColumns, read_negative_samples, read_positive_samples
 
 
 def get_args():
@@ -41,37 +39,11 @@ def get_args():
     return parser.parse_args()
 
 
-# create an enum for the column names to reuse
-class TFColumns(Enum):
-    INDEX = "Index"
-    CHROM = "Chromosome"
-    START = "Start"
-    END = "End"
-    TF_NAME = "TF_Name"
-    SCORE = "Score"
-    STRAND = "Strand"
-    CHROM_INDEX = "Chrom_Index"  # for the chip-seq data, chrx.y, meaningless
-
-
 def generate_positive_examples(true_tf_file, output_dir):
     """
     Generate positive examples from the true TF binding sites file.
     """
-    pos_tf_sites = pr.PyRanges(
-        pd.read_table(
-            true_tf_file,
-            names=[
-                TFColumns.INDEX.value,
-                TFColumns.CHROM.value,
-                TFColumns.START.value,
-                TFColumns.END.value,
-                TFColumns.TF_NAME.value,
-                TFColumns.SCORE.value,
-                TFColumns.STRAND.value,
-            ],
-        )
-    )
-
+    pos_tf_sites = read_positive_samples(true_tf_file)
     tf_names = pos_tf_sites[TFColumns.TF_NAME.value].unique().tolist()
 
     for tf_name in tqdm(tf_names):
@@ -102,18 +74,7 @@ def generate_negative_examples(pos_tf_sites, chip_seq_file, output_dir):
     """
     Generate negative examples from the ChIP-seq data file.
     """
-    chip_seq_sites = pr.PyRanges(
-        pd.read_table(
-            chip_seq_file,
-            names=[
-                TFColumns.CHROM.value,
-                TFColumns.START.value,
-                TFColumns.END.value,
-                TFColumns.CHROM_INDEX.value,
-            ],
-        )
-    )
-
+    chip_seq_sites = read_negative_samples(chip_seq_file)
     tf_names = pos_tf_sites[TFColumns.TF_NAME.value].unique().tolist()
 
     for tf_name in tqdm(tf_names):
@@ -145,5 +106,4 @@ def generate_negative_examples(pos_tf_sites, chip_seq_file, output_dir):
 if __name__ == "__main__":
     args = get_args()
     pos_tf_sites = generate_positive_examples(args.true_tf_file, args.output_dir)
-
     generate_negative_examples(pos_tf_sites, args.chip_seq_file, args.output_dir)
