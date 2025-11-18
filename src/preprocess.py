@@ -238,7 +238,7 @@ def get_top_scoring_subsequence(pwm, sequence):
                 score += np.log(1e-6)  # small probability for unknown nucleotides
                 continue
             index = nucleotides.index(nucleotide)
-            score += np.log(pwm[index, j])
+            score += np.log(pwm[index, j] + 1e-6)  # avoid log(0)
 
         if score > max_score:
             max_score = score
@@ -253,6 +253,8 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file):
     Preprocesses the resultant sequence and interval files, s.t. we can generate
     the best negative examples based on the probability weight matrix file.
     """
+    # TODO: Handle the negative strand case as well
+
     tf_output_dir = os.path.join(output_dir, f"{tf_name}/negative")
     tf_file = os.path.join(tf_output_dir, "intervals.txt")
     seq_file = os.path.join(tf_output_dir, "sequences.txt")
@@ -276,11 +278,22 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file):
 
     # now that we have the probability weight matrix, we want to measure
     # the sliding window score for each sequence, and return the best
-    with open(seq_file, "r") as seq_f, open(
+    with open(seq_file, "r") as seq_f, open(tf_file, "r") as interval_f, open(
         os.path.join(tf_output_dir, "best_negative_sequences.txt"), "w"
     ) as out_f:
-        for line in seq_f:
-            pass
+        for seq_line, interval_line in zip(seq_f, interval_f):
+            sequence = seq_line.strip()
+            _, start_str, _ = interval_line.strip().split()
+            start = int(start_str)
+
+            best_subseq, (
+                sub_start_offset,
+                sub_end_offset,
+            ) = get_top_scoring_subsequence(pwm, sequence)
+            best_start = start + sub_start_offset
+            best_end = start + sub_end_offset
+
+            out_f.write(f"{best_start}\t{best_end}\t{best_subseq}\n")
 
 
 if __name__ == "__main__":
@@ -293,15 +306,4 @@ if __name__ == "__main__":
     )
 
     preprocess_seq(args.output_dir, args.tf)
-    # preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file)
-
-    example_pwm = np.array(
-        [
-            [0.2, 0.3, 0.3, 0.2],  # A
-            [0.3, 0.2, 0.2, 0.3],  # C
-            [0.2, 0.2, 0.3, 0.3],  # G
-            [0.3, 0.3, 0.2, 0.2],  # T
-        ]
-    )
-    example_sequence = "TTGGACGTACGTGACTTGA"
-    print(get_top_scoring_subsequence(example_pwm, example_sequence))
+    preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file)
