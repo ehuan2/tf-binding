@@ -13,3 +13,6 @@ preprocess:
 
 run_simple:
 	python src/main.py --config real_configs/simple.yaml
+
+preprocess_ctcf:
+	python src/preprocess.py --tf CTCF --pwm_file ./data/factorbookMotifPwm.txt
