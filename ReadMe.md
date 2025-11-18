@@ -26,3 +26,10 @@ Run:
 pip install pre-commit
 pre-commit install
 ```
+
+## Config Setup
+Take the `configs/simple.yaml` as an example, where you have the following to define:
+1. The type of architecture to train.
+2. The transcription factor to use for training.
+3. The predicted structure data directory.
+4. Whether or not to include the sequence information.

@@ -16,7 +16,6 @@ import pandas as pd
 
 def get_subsequence(fasta_file, start, end):
     """
-    TODO: actually see if this works well
     Extracts a subsequence from a fasta file given start and end positions.
 
     Parameters:
