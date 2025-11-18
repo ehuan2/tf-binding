@@ -7,6 +7,7 @@ import argparse
 import os
 from enum import Enum
 
+from models.base import BaseModel
 import yaml
 
 
@@ -54,9 +55,33 @@ class Config:
             help="The directory containing preprocessed data",
         )
         parser.add_argument(
+            "--fasta_data_dir",
+            type=str,
+            default="data/fasta",
+            help="The directory containing fasta data",
+        )
+        parser.add_argument(
             "--pred_struct_data_dir",
             type=str,
             help="The directory containing preprocessed data",
+        )
+        parser.add_argument(
+            "--train_split",
+            type=float,
+            default=0.8,
+            help="The proportion of data to use for training",
+        )
+        parser.add_argument(
+            "--batch_size",
+            type=int,
+            default=32,
+            help="The batch size to use for training",
+        )
+        parser.add_argument(
+            "--use_seq",
+            action="store_true",
+            default=None,
+            help="Whether to use sequence data",
         )
 
         # only parse the args that we know, and throw out what we don't know
@@ -106,3 +131,15 @@ class Config:
         assert os.path.exists(
             self.pred_struct_data_dir
         ), f"DNA predicted structure data directory {self.pred_struct_data_dir} does not exist"
+
+
+def get_model_instance(config: Config) -> BaseModel:
+    """
+    Factory function to get the model instance based on the architecture specified in the config.
+    """
+    if config.architecture == "simple":
+        from models.simple import SimpleModel
+
+        return SimpleModel(config)
+    else:
+        raise ValueError(f"Unknown architecture: {config.architecture}")

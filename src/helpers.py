@@ -29,8 +29,9 @@ def get_subsequence(fasta_file, start, end):
     """
     # Read the fasta file
     record = SeqIO.read(fasta_file, "fasta")
-    # Extract the subsequence (convert to 0-based indexing)
-    subsequence = record.seq[start - 1 : end]
+    # Extract the subsequence, it is 0-based indexed and end-exclusive!
+    # So it works super nicely in python :)
+    subsequence = record.seq[start:end]
     return str(subsequence)
 
 

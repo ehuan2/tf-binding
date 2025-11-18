@@ -1,3 +1,4 @@
 architecture: simple
 tf: CTCF
 pred_struct_data_dir: /path/to/pred
+use_seq: true

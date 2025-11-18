@@ -4,21 +4,9 @@ main.py
 This is the main script to run a model given the specified yaml configuration file.
 """
 
-from models.config import Config
-from models.base import BaseModel
-
-
-def get_model_instance(config: Config) -> BaseModel:
-    """
-    Factory function to get the model instance based on the architecture specified in the config.
-    """
-    if config.architecture == "simple":
-        from models.simple import SimpleModel
-
-        return SimpleModel(config)
-    else:
-        raise ValueError(f"Unknown architecture: {config.architecture}")
-
+from models.config import Config, get_model_instance
+from dataloaders import get_data_splits
+from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
     config = Config()
@@ -26,16 +14,18 @@ if __name__ == "__main__":
     # Depending on the architecture, we would instantiate different models
     model = get_model_instance(config)
 
-    print(model)
+    # Now get the training and testing data splits
+    train_dataset, test_dataset = get_data_splits(config)
+    print(f"Training dataset size: {len(train_dataset)}")
+    print(f"Testing dataset size: {len(test_dataset)}")
 
-    # TODO: train and evaluate the model
-    # if config.train:
-    #     print("Training the model...")
-    #     model.train()
+    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
-    # if config.evaluate:
-    #     print("Evaluating the model...")
-    #     model.evaluate()
+    for batch in train_loader:
+        print("Training batch:", batch)
+        break
 
-    # model.train()
-    # model.evaluate()
+    # Then we train the model and evaluate
+    # model.train(train_loader)
+    # model.evaluate(test_loader)
