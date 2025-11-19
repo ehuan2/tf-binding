@@ -21,7 +21,7 @@ You will need the following files:
 
 Make sure to set them all under the same directory, ideally under `data/`, however you can specify during preprocessing to use any path with:
 ```
-python preprocess.py --fasta_data_dir <str> --chip_seq_file <str> --true_tf_file <str> --pwm_file <str>
+python src/preprocess/preprocess.py --fasta_data_dir <str> --chip_seq_file <str> --true_tf_file <str> --pwm_file <str>
 ```
 or if you have everything under the correct locations of `data/fasta, data/wgEncodeRegTfbsClusteredV3.GM12878.merged.bed, data/factorbookMotifPos.txt, data/factorbookMotifPwm.txt` respectively, then you can simply run:
 ```
@@ -32,7 +32,7 @@ This will preprocess the data and spit out to what is specified by `--output_dir
 
 Then, to prepare for a specific TF with other structural features, use:
 ```
-python preprocess.py --tf <str> --mgw_path <str>
+python src/preprocess/preprocess.py --tf <str> --mgw_path <str>
 ```
 
 ## Training
