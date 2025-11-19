@@ -7,7 +7,6 @@ Custom dataset classes for loading transcription factor binding site data.
 from helpers import (
     read_positive_samples,
     read_negative_samples,
-    get_subsequence,
     TFColumns,
 )
 from models.config import Config
@@ -46,14 +45,6 @@ class IntervalDataset(Dataset):
 
         # also return the specified numbers depending on config, such as the sequence
         structure_features = {}
-        if self.config.use_seq:
-            # read from the genome file to get the sequence
-            structure_features["sequence"] = get_subsequence(
-                fasta_file=os.path.join(self.config.fasta_data_dir, f"{chrom}.fa"),
-                start=start,
-                end=end,
-            )
-
         return (chrom, start, end), structure_features, self.is_tf_site
 
 

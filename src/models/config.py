@@ -46,23 +46,13 @@ class Config:
         parser.add_argument(
             "--tf",
             type=str,
+            required=True,
             help="The transcription factor to use for training and evaluation",
         )
         parser.add_argument(
             "--preprocess_data_dir",
             type=str,
             default="data/tf_sites",
-            help="The directory containing preprocessed data",
-        )
-        parser.add_argument(
-            "--fasta_data_dir",
-            type=str,
-            default="data/fasta",
-            help="The directory containing fasta data",
-        )
-        parser.add_argument(
-            "--pred_struct_data_dir",
-            type=str,
             help="The directory containing preprocessed data",
         )
         parser.add_argument(
@@ -76,12 +66,6 @@ class Config:
             type=int,
             default=32,
             help="The batch size to use for training",
-        )
-        parser.add_argument(
-            "--use_seq",
-            action="store_true",
-            default=None,
-            help="Whether to use sequence data",
         )
 
         # only parse the args that we know, and throw out what we don't know
