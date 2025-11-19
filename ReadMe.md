@@ -9,4 +9,27 @@ You will need the following files:
 Move all of these under `data/`.
 
 ## Requirements setup
-Create your virtualenv, and then install using `pip install -r requirements.txt`.
+Due to the `pyranges` environment, we suggest to use conda, with the following:
+```
+conda create -n tfbinding python=3.12
+```
+then, you can install the requirements using:
+```
+pip install -r requirements.txt
+```
+Note: we require python version 3.12 for the pyranges1 package.
+
+## Contributing
+We use some autoformatters, such as `black` to ensure readability.
+Run:
+```
+pip install pre-commit
+pre-commit install
+```
+
+## Config Setup
+Take the `configs/simple.yaml` as an example, where you have the following to define:
+1. The type of architecture to train.
+2. The transcription factor to use for training.
+3. The predicted structure data directory.
+4. Whether or not to include the sequence information.
