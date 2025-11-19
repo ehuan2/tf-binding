@@ -46,6 +46,7 @@ class TFColumns(Enum):
     CHROM_INDEX = "Chrom_Index"  # for the chip-seq data, chrx.y, meaningless
     SEQ = "Sequence"
     LOG_PROB = "Log_Prob"
+    MGW = "MGW"
 
 
 def read_positive_samples(true_tf_file, include_index=True):
