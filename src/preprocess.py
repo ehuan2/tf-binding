@@ -179,86 +179,11 @@ def preprocess_range(output_dir, tf_name, output_name, is_pos, handle_seq_fn):
                 out_f.write(f"{subsequence}\n")
 
 
-def preprocess_seq(output_dir, tf_name):
+def get_pwm(pwm_file, tf_name):
     """
-    Preprocess the sequences for a given TF name.
+    Given a PWM file, and a specified TF,
+    return the probability weight matrix as a numpy array.
     """
-
-    def handle_seq_fn(record, start, end):
-        subsequence = record.seq[start:end]
-        return str(subsequence)
-
-    if tf_name is None:
-        tf_names = [
-            name
-            for name in os.listdir(output_dir)
-            if os.path.isdir(os.path.join(output_dir, name))
-        ]
-        for tf_name in tf_names:
-            preprocess_range(
-                output_dir,
-                tf_name,
-                "sequences",
-                is_pos=True,
-                handle_seq_fn=handle_seq_fn,
-            )
-            preprocess_range(
-                output_dir,
-                tf_name,
-                "sequences",
-                is_pos=False,
-                handle_seq_fn=handle_seq_fn,
-            )
-    else:
-        preprocess_range(
-            output_dir, tf_name, "sequences", is_pos=True, handle_seq_fn=handle_seq_fn
-        )
-        print(f"Preprocessed sequences for positive examples of TF: {tf_name}")
-        preprocess_range(
-            output_dir, tf_name, "sequences", is_pos=False, handle_seq_fn=handle_seq_fn
-        )
-        print(f"Preprocessed sequences for negative examples of TF: {tf_name}")
-
-
-def get_top_scoring_subsequence(pwm, sequence):
-    """
-    Given a probability weight matrix and a sequence, return the top scoring subsequence and its interval.
-    """
-    tf_len = pwm.shape[1]
-    max_score = float("-inf")
-    best_subseq = None
-
-    for i in range(len(sequence) - tf_len + 1):
-        subseq = sequence[i : i + tf_len].upper()
-        # the scores should be the log probabilities
-        score = 0.0
-        for j, nucleotide in enumerate(subseq):
-            nucleotides = ["A", "C", "G", "T"]
-            if nucleotide not in nucleotides:
-                score += np.log(1e-6)  # small probability for unknown nucleotides
-                continue
-            index = nucleotides.index(nucleotide)
-            score += np.log(pwm[index, j] + 1e-6)  # avoid log(0)
-
-        if score > max_score:
-            max_score = score
-            best_subseq = subseq
-            best_interval = (i, i + tf_len)
-
-    return best_subseq, best_interval
-
-
-def preprocess_neg_seq(output_dir, tf_name, pwm_file):
-    """
-    Preprocesses the resultant sequence and interval files, s.t. we can generate
-    the best negative examples based on the probability weight matrix file.
-    """
-    # TODO: Handle the negative strand case as well
-
-    tf_output_dir = os.path.join(output_dir, f"{tf_name}/negative")
-    tf_file = os.path.join(tf_output_dir, "intervals.txt")
-    seq_file = os.path.join(tf_output_dir, "sequences.txt")
-
     # assume that these files exist
     # first we should get the probability weight matrix
     with open(pwm_file, "r") as pwm_f:
@@ -275,25 +200,162 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file):
                 nuc_probs = vals[2 + i].split(",")[:-1]
                 pwm[i, :] = np.array([float(x) for x in nuc_probs])
             break
+    return pwm
+
+
+def score_seq(pwm, seq):
+    """
+    Given a PWM and a sequence, return the score of the sequence.
+    """
+    score = 0.0
+    for j, nucleotide in enumerate(seq):
+        nucleotides = ["A", "C", "G", "T"]
+        if nucleotide not in nucleotides:
+            score += np.log(1e-6)  # small probability for unknown nucleotides
+            continue
+        index = nucleotides.index(nucleotide)
+        score += np.log(pwm[index, j] + 1e-6)  # avoid log(0)
+    return score
+
+
+def preprocess_seq(output_dir, tf_name, pwm_file):
+    """
+    Preprocess the sequences for a given TF name.
+    """
+
+    def no_score_seq_fn(record, start, end):
+        subsequence = record.seq[start:end]
+        return str(subsequence)
+
+    def pwm_wrapper(pwm):
+        def handle_seq_fn(record, start, end):
+            subsequence = record.seq[start:end]
+            score = score_seq(pwm, str(subsequence))
+            return f"{str(subsequence)}\t{score}"
+
+        return handle_seq_fn
+
+    if tf_name is None:
+        tf_names = [
+            name
+            for name in os.listdir(output_dir)
+            if os.path.isdir(os.path.join(output_dir, name))
+        ]
+    else:
+        tf_names = [tf_name]
+
+    for tf in tf_names:
+        pwm = get_pwm(pwm_file, tf)
+        preprocess_range(
+            output_dir,
+            tf,
+            "sequences",
+            is_pos=True,
+            handle_seq_fn=pwm_wrapper(pwm),
+        )
+        preprocess_range(
+            output_dir,
+            tf,
+            "sequences",
+            is_pos=False,
+            handle_seq_fn=no_score_seq_fn,
+        )
+
+    print(
+        f"Preprocessed sequences for positive and negative examples of TFs: {tf_names}"
+    )
+
+
+def get_negative_strand_subsequence(sequence):
+    """
+    Given a sequence, return its negative strand subsequence.
+    """
+    complement = {"A": "T", "T": "A", "C": "G", "G": "C", "N": "N"}
+    neg_strand = "".join(complement.get(base, "N") for base in reversed(sequence))
+    return neg_strand
+
+
+def get_top_scoring_subsequence(pwm, sequence):
+    """
+    Given a probability weight matrix and a sequence, return the top scoring subsequence and its interval.
+    """
+    tf_len = pwm.shape[1]
+    max_score = float("-inf")
+    best_subseq = None
+
+    for i in range(len(sequence) - tf_len + 1):
+        subseq = sequence[i : i + tf_len]
+        # the scores should be the log probabilities
+        score = 0.0
+        for j, nucleotide in enumerate(subseq):
+            nucleotides = ["A", "C", "G", "T"]
+            if nucleotide not in nucleotides:
+                score += np.log(1e-6)  # small probability for unknown nucleotides
+                continue
+            index = nucleotides.index(nucleotide)
+            score += np.log(pwm[index, j] + 1e-6)  # avoid log(0)
+
+        if score > max_score:
+            max_score = score
+            best_subseq = subseq
+            best_interval = (i, i + tf_len)
+
+    return best_subseq, best_interval, max_score
+
+
+def preprocess_neg_seq(output_dir, tf_name, pwm_file, reverse=False):
+    """
+    Preprocesses the resultant sequence and interval files, s.t. we can generate
+    the best negative examples based on the probability weight matrix file.
+    """
+    tf_output_dir = os.path.join(output_dir, f"{tf_name}/negative")
+    tf_file = os.path.join(tf_output_dir, "intervals.txt")
+    seq_file = os.path.join(tf_output_dir, "sequences.txt")
+    output_file = os.path.join(
+        tf_output_dir, f"{'reverse_' if reverse else ''}best_negative_sequences.txt"
+    )
+
+    # skip if it already exists
+    if os.path.exists(output_file):
+        return
+
+    pwm = get_pwm(pwm_file, tf_name)
 
     # now that we have the probability weight matrix, we want to measure
     # the sliding window score for each sequence, and return the best
     with open(seq_file, "r") as seq_f, open(tf_file, "r") as interval_f, open(
-        os.path.join(tf_output_dir, "best_negative_sequences.txt"), "w"
+        output_file, "w"
     ) as out_f:
-        for seq_line, interval_line in zip(seq_f, interval_f):
-            sequence = seq_line.strip()
-            _, start_str, _ = interval_line.strip().split()
+        for seq_line, interval_line in tqdm(zip(seq_f, interval_f)):
+            sequence = seq_line.strip().upper()
+            _, start_str, end_str = interval_line.strip().split()
             start = int(start_str)
+            end = int(end_str)
 
-            best_subseq, (
-                sub_start_offset,
-                sub_end_offset,
+            # simply reverse it if it's reversed
+            if reverse:
+                sequence = get_negative_strand_subsequence(sequence)
+
+            (
+                best_subseq,
+                (
+                    sub_start_offset,
+                    sub_end_offset,
+                ),
+                max_score,
             ) = get_top_scoring_subsequence(pwm, sequence)
-            best_start = start + sub_start_offset
-            best_end = start + sub_end_offset
 
-            out_f.write(f"{best_start}\t{best_end}\t{best_subseq}\n")
+            # then we adjust the start and end positions based on the strand
+            if reverse:
+                # now we get the original positions of the forward strand that
+                # correspond to this reverse subsequence
+                best_start = end - sub_end_offset
+                best_end = end - sub_start_offset
+            else:
+                best_start = start + sub_start_offset
+                best_end = start + sub_end_offset
+
+            out_f.write(f"{best_start}\t{best_end}\t{best_subseq}\t{max_score}\n")
 
 
 if __name__ == "__main__":
@@ -305,5 +367,13 @@ if __name__ == "__main__":
         pos_tf_sites, args.chip_seq_file, args.output_dir, args.tf
     )
 
-    preprocess_seq(args.output_dir, args.tf)
-    preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file)
+    preprocess_seq(args.output_dir, args.tf, args.pwm_file)
+
+    # do the negative sequence preprocessing -- can only do if a TF name is given
+    if args.tf is not None:
+        preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file)
+        preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file, reverse=True)
+
+    # TODO: based off of the regions found in the previous files
+    # create the preprocessed structural feature vectors as well
+    # probably want to store it as a .pt file maybe?

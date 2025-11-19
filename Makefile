@@ -1,12 +1,26 @@
-.PHONY: clean_positives clean_negatives clean preprocess run_simple
+.PHONY: clean_best_neg_seqs clean_fwd_best_neg_seqs clean_rev_best_neg_seqs
 clean:
 	rm -r data/tf_sites
 
 clean_positives:
-	rm -r data/tf_sites/*/positive_examples.txt
+	rm -r data/tf_sites/*/positive/intervals.txt
+
+clean_pos_seqs:
+	rm -r data/tf_sites/*/positive/sequences.txt
+
+clean_neg_seqs:
+	rm -r data/tf_sites/*/negative/sequences.txt
 
 clean_negatives:
-	rm -r data/tf_sites/*/negative_examples.txt
+	rm -r data/tf_sites/*/negative/intervals.txt
+
+clean_best_neg_seqs: clean_fwd_best_neg_seqs clean_rev_best_neg_seqs
+
+clean_fwd_best_neg_seqs:
+	rm -r data/tf_sites/*/negative/best_negative_sequences.txt
+
+clean_rev_best_neg_seqs:
+	rm -r data/tf_sites/*/negative/reverse_best_negative_sequences.txt
 
 preprocess:
 	python src/preprocess.py
