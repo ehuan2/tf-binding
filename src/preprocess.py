@@ -15,7 +15,9 @@ from helpers import (
     TFColumns,
     read_negative_samples,
     read_positive_samples,
+    read_samples,
 )
+import pyranges as pr
 from Bio import SeqIO
 import numpy as np
 
@@ -59,6 +61,12 @@ def get_args():
         type=str,
         default=None,
         help="The probability weight matrix file to read from for negative sequence processing.",
+    )
+    parser.add_argument(
+        "--mgw-path",
+        type=str,
+        default=None,
+        help="Path to the Minor Groove Width (MGW) data file for preprocessing.",
     )
     return parser.parse_args()
 
@@ -328,7 +336,7 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file, reverse=False):
     ) as out_f:
         for seq_line, interval_line in tqdm(zip(seq_f, interval_f)):
             sequence = seq_line.strip().upper()
-            _, start_str, end_str = interval_line.strip().split()
+            chrom, start_str, end_str = interval_line.strip().split()
             start = int(start_str)
             end = int(end_str)
 
@@ -355,7 +363,89 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file, reverse=False):
                 best_start = start + sub_start_offset
                 best_end = start + sub_end_offset
 
-            out_f.write(f"{best_start}\t{best_end}\t{best_subseq}\t{max_score}\n")
+            out_f.write(
+                f"{chrom}\t{best_start}\t{best_end}\t{best_subseq}\t{max_score}\n"
+            )
+
+
+def preprocess_structure_pred(
+    output_dir, tf_name, file_path, feature_name, batch_size=100000
+):
+    """
+    Preprocess the structure prediction file s.t. we filter out all reads
+    that are not in the specified regions for this TF, either positive or negative.
+
+    Then we write out a file per TF with the structure feature values.
+    """
+    # 1) we will read the ranges from the positive and negative samples
+    # for this TF and merge them -- specifically:
+    # a. negative/best_negative_sequences.txt
+    # b. positive/intervals.txt
+    # c. negative/reverse_best_negative_sequences.txt
+    # 2) we will then read through the structure prediction file, storing
+    # batches of ranges (to avoid memory issues)
+    # 3) For each batch, we will check which ranges overlap with our TF regions
+    # 4) We will write out the overlapping ranges to a new file
+
+    pos_intervals_file = os.path.join(output_dir, tf_name, "positive", "intervals.txt")
+    neg_intervals_file = os.path.join(
+        output_dir, tf_name, "negative", "best_negative_sequences.txt"
+    )
+    rev_neg_intervals_file = os.path.join(
+        output_dir, tf_name, "negative", "reverse_best_negative_sequences.txt"
+    )
+
+    # now let's turn these all to pyranges and then merge them
+    pos_pr = read_samples(
+        pos_intervals_file,
+        names=[
+            TFColumns.CHROM.value,
+            TFColumns.START.value,
+            TFColumns.END.value,
+            TFColumns.SCORE.value,
+            TFColumns.STRAND.value,
+        ],
+    )
+    neg_names = [
+        TFColumns.CHROM.value,
+        TFColumns.START.value,
+        TFColumns.END.value,
+        TFColumns.SEQ.value,
+        TFColumns.LOG_PROB.value,
+    ]
+    neg_pr = read_samples(neg_intervals_file, names=neg_names)
+    rev_neg_pr = read_samples(rev_neg_intervals_file, names=neg_names)
+
+    # first, drop everything except the chromosomes and their ranges
+    pos_pr.drop(columns=[TFColumns.SCORE.value, TFColumns.STRAND.value], inplace=True)
+    neg_pr.drop(columns=[TFColumns.SEQ.value, TFColumns.LOG_PROB.value], inplace=True)
+    rev_neg_pr.drop(
+        columns=[TFColumns.SEQ.value, TFColumns.LOG_PROB.value], inplace=True
+    )
+
+    all_regions_pr = pr.concat([pos_pr, neg_pr, rev_neg_pr])
+    all_regions_pr = all_regions_pr.merge_overlaps()
+
+    # 2nd now we read through the structure prediction file
+    # with open(file_path, 'r') as f:
+    #     # the format that we have is:
+    #     # variableStep chrom=chri
+    #     # position value
+    #     current_chrom = None
+    #     out_f = None
+    #     for line in tqdm(f):
+    #         if line.startswith('variableStep'):
+    #             if out_f is not None:
+    #                 out_f.close()
+    #             parts = line.strip().split()
+    #             chrom_part = parts[1]
+    #             current_chrom = chrom_part.split('=')[1]
+    #             os.makedirs(f'data/{feature_name}_processed', exist_ok=True)
+    #             out_f = open(f'data/{feature_name}_processed/{current_chrom}.txt', 'w')
+    #         else:
+    #             # position value
+    #             if out_f is not None:
+    #                 out_f.write(line)
 
 
 if __name__ == "__main__":
@@ -377,3 +467,5 @@ if __name__ == "__main__":
     # TODO: based off of the regions found in the previous files
     # create the preprocessed structural feature vectors as well
     # probably want to store it as a .pt file maybe?
+    if args.mgw_path:
+        preprocess_structure_pred(args.output_dir, args.tf, args.mgw_path, "mgw")

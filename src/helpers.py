@@ -44,6 +44,8 @@ class TFColumns(Enum):
     SCORE = "Score"
     STRAND = "Strand"
     CHROM_INDEX = "Chrom_Index"  # for the chip-seq data, chrx.y, meaningless
+    SEQ = "Sequence"
+    LOG_PROB = "Log_Prob"
 
 
 def read_positive_samples(true_tf_file, include_index=True):
@@ -92,3 +94,17 @@ def read_negative_samples(chip_seq_file, include_chrom_index=True):
         names.append(TFColumns.CHROM_INDEX.value)
 
     return pr.PyRanges(pd.read_table(chip_seq_file, names=names))
+
+
+def read_samples(file_path, names):
+    """
+    Generic function to read samples from a file into a PyRanges object.
+
+    Parameters:
+    file_path (str): Path to the input file.
+    names (list): List of column names.
+
+    Returns:
+    pr.PyRanges: PyRanges object containing the samples.
+    """
+    return pr.PyRanges(pd.read_table(file_path, names=names))
