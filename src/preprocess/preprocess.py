@@ -7,9 +7,13 @@ and the true regions of binding sites.
 
 Outputs to data/tf_sites/ by default, where there is a folder per each TF.
 """
+# change the pythonpath to the src/ directory
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import argparse
-import os
 from tqdm import tqdm
 from helpers import (
     TFColumns,
@@ -180,9 +184,7 @@ def preprocess_range(output_dir, tf_name, output_name, is_pos, handle_seq_fn):
             record = SeqIO.read(fasta_file, "fasta")
 
             for _, site in chrom_pos_sites.iterrows():
-                start = site[TFColumns.START.value]
-                end = site[TFColumns.END.value]
-                subsequence = handle_seq_fn(record, start, end)
+                subsequence = handle_seq_fn(site, record)
                 out_f.write(f"{subsequence}\n")
 
 
@@ -235,10 +237,22 @@ def preprocess_seq(output_dir, tf_name, pwm_file):
         return str(subsequence)
 
     def pwm_wrapper(pwm):
-        def handle_seq_fn(record, start, end):
-            subsequence = record.seq[start:end]
+        def handle_seq_fn(site, record):
+            chrom = site[TFColumns.CHROM.value]
+            start = site[TFColumns.START.value]
+            end = site[TFColumns.END.value]
+            strand = site[TFColumns.STRAND.value]
+
+            subsequence = str(record.seq[start:end]).upper()
+
+            if strand == "-":
+                subsequence = get_negative_strand_subsequence(subsequence)
+
+            subsequence = subsequence.upper()
+
             score = score_seq(pwm, str(subsequence))
-            return f"{str(subsequence)}\t{score}"
+
+            return f"{chrom}\t{str(subsequence)}\t{score}"
 
         return handle_seq_fn
 
@@ -277,8 +291,8 @@ def get_negative_strand_subsequence(sequence):
     """
     Given a sequence, return its negative strand subsequence.
     """
-    complement = {"A": "T", "T": "A", "C": "G", "G": "C", "N": "N"}
-    neg_strand = "".join(complement.get(base, "N") for base in reversed(sequence))
+    complement = {"A": "T", "T": "A", "C": "G", "G": "C"}
+    neg_strand = "".join(complement[base] for base in reversed(sequence))
     return neg_strand
 
 
