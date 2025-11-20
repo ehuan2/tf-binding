@@ -232,9 +232,10 @@ def preprocess_seq(output_dir, tf_name, pwm_file):
     Preprocess the sequences for a given TF name.
     """
 
-    def no_score_seq_fn(record, start, end):
-        subsequence = record.seq[start:end]
-        return str(subsequence)
+    def no_score_seq_fn(site, record):
+        start = site[TFColumns.START.value]
+        end = site[TFColumns.END.value]
+        return str(record.seq[start:end]).upper()
 
     def pwm_wrapper(pwm):
         def handle_seq_fn(site, record):
@@ -292,7 +293,7 @@ def get_negative_strand_subsequence(sequence):
     Given a sequence, return its negative strand subsequence.
     """
     complement = {"A": "T", "T": "A", "C": "G", "G": "C"}
-    neg_strand = "".join(complement[base] for base in reversed(sequence))
+    neg_strand = "".join(complement.get(base, "N") for base in reversed(sequence))
     return neg_strand
 
 
