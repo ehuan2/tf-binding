@@ -55,12 +55,6 @@ def get_args():
         default="data/factorbookMotifPwm.txt",
         help="The probability weight matrix file to read from for negative sequence processing.",
     )
-    parser.add_argument(
-        "--mgw_path",
-        type=str,
-        default=None,
-        help="Path to the Minor Groove Width (MGW) data file for preprocessing.",
-    )
     return parser.parse_args()
 
 

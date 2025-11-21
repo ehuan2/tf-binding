@@ -162,6 +162,22 @@ def get_pwm(pwm_file, tf_name):
     return pwm
 
 
+def get_ind_score(pwm, seq):
+    """
+    Given a PWM and a sequence, return the individual scores of the sequence.
+    """
+    scores = np.zeros(len(seq))
+    for i in range(len(seq)):
+        nucleotide = seq[i]
+        nucleotides = ["A", "C", "G", "T"]
+        if nucleotide not in nucleotides:
+            scores[i] = np.log(1e-6)  # unknown nucleotide
+            continue
+        index = nucleotides.index(nucleotide)
+        scores[i] = np.log(pwm[index, i] + 1e-6)  # avoid log(0)
+    return scores
+
+
 def score_seq(pwm, seq):
     """
     Given a PWM and a sequence, return the score of the sequence.
@@ -407,61 +423,6 @@ def filter_scores(args, overall_min, overall_max):
         write_out_file(rev_neg_subset, "-")
 
 
-def preprocess_structure_pred(output_dir, tf_name, file_path, feature_name):
-    """
-    Preprocess the structure prediction file s.t. we filter out all reads
-    that are not in the specified regions for this TF, either positive or negative.
-
-    Then we write out a file per TF with the structure feature values.
-
-    1) we will read the ranges from the positive and negative samples
-    for this TF and merge them -- specifically:
-        a. negative/best_negative_sequences.txt
-        b. positive/intervals.txt
-        c. negative/reverse_best_negative_sequences.txt
-    2) we will then read through the structure prediction file, storing
-    batches of ranges (to avoid memory issues)
-    3) For each batch, we will check which ranges overlap with our TF regions
-    4) We will write out the overlapping ranges to a new file
-    """
-
-    pos_intervals_file = os.path.join(output_dir, tf_name, "positive", "intervals.txt")
-    neg_intervals_file = os.path.join(
-        output_dir, tf_name, "negative", "best_negative_sequences.txt"
-    )
-    rev_neg_intervals_file = os.path.join(
-        output_dir, tf_name, "negative", "reverse_best_negative_sequences.txt"
-    )
-
-    # now let's turn these all to pyranges and then merge them
-    pos_pr = read_samples(
-        pos_intervals_file,
-        names=[
-            TFColumns.CHROM.value,
-            TFColumns.START.value,
-            TFColumns.END.value,
-            TFColumns.SCORE.value,
-            TFColumns.STRAND.value,
-        ],
-    )
-    neg_names = [
-        TFColumns.CHROM.value,
-        TFColumns.START.value,
-        TFColumns.END.value,
-        TFColumns.SEQ.value,
-        TFColumns.LOG_PROB.value,
-    ]
-    neg_pr = read_samples(neg_intervals_file, names=neg_names)
-    rev_neg_pr = read_samples(rev_neg_intervals_file, names=neg_names)
-
-    # first, drop everything except the chromosomes and their ranges
-    pos_pr.drop(columns=[TFColumns.SCORE.value, TFColumns.STRAND.value], inplace=True)
-    neg_pr.drop(columns=[TFColumns.SEQ.value, TFColumns.LOG_PROB.value], inplace=True)
-    rev_neg_pr.drop(
-        columns=[TFColumns.SEQ.value, TFColumns.LOG_PROB.value], inplace=True
-    )
-
-
 if __name__ == "__main__":
     args = get_args()
     pos_tf_sites = generate_positive_examples(
@@ -488,11 +449,3 @@ if __name__ == "__main__":
         # now we will read the files again, and only keep those
         # that are in the overlapping range
         filter_scores(args, overall_min, overall_max)
-
-    # TODO: based off of the regions found in the previous files
-    # create the preprocessed structural feature vectors as well
-    # probably want to store it as a .pt file maybe?
-    if args.mgw_path:
-        preprocess_structure_pred(
-            args.output_dir, args.tf, args.mgw_path, TFColumns.MGW.value
-        )
