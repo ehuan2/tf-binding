@@ -13,7 +13,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from tqdm import tqdm
-from preprocess_helpers import get_args
+from preprocess_helpers import get_args, read_scores, get_overlap_range
 from helpers import (
     TFColumns,
     read_negative_samples,
@@ -332,6 +332,81 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file, reverse=False):
             )
 
 
+def filter_scores(args, overall_min, overall_max):
+    pos_seqs_file = os.path.join(args.output_dir, args.tf, "positive", "sequences.txt")
+    neg_intervals_file = os.path.join(
+        args.output_dir, args.tf, "negative", "best_negative_sequences.txt"
+    )
+    rev_neg_intervals_file = os.path.join(
+        args.output_dir, args.tf, "negative", "reverse_best_negative_sequences.txt"
+    )
+
+    pos_names = [
+        TFColumns.CHROM.value,
+        TFColumns.START.value,
+        TFColumns.END.value,
+        TFColumns.STRAND.value,
+        TFColumns.SEQ.value,
+        TFColumns.LOG_PROB.value,
+    ]
+    positive_pr = read_samples(pos_seqs_file, names=pos_names)
+
+    neg_names = [
+        TFColumns.CHROM.value,
+        TFColumns.START.value,
+        TFColumns.END.value,
+        TFColumns.SEQ.value,
+        TFColumns.LOG_PROB.value,
+    ]
+    neg_pr = read_samples(neg_intervals_file, names=neg_names)
+    rev_neg_pr = read_samples(rev_neg_intervals_file, names=neg_names)
+
+    # now we filter based on the scores and write out new files
+    filtered_pos_file = os.path.join(
+        args.output_dir, args.tf, "positive", "overlap.txt"
+    )
+    filtered_neg_file = os.path.join(
+        args.output_dir, args.tf, "negative", "overlap.txt"
+    )
+
+    positive_subset = positive_pr[
+        (positive_pr[TFColumns.LOG_PROB.value] >= overall_min)
+        & (positive_pr[TFColumns.LOG_PROB.value] <= overall_max)
+    ]
+    neg_subset = neg_pr[
+        (neg_pr[TFColumns.LOG_PROB.value] >= overall_min)
+        & (neg_pr[TFColumns.LOG_PROB.value] <= overall_max)
+    ]
+    rev_neg_subset = rev_neg_pr[
+        (rev_neg_pr[TFColumns.LOG_PROB.value] >= overall_min)
+        & (rev_neg_pr[TFColumns.LOG_PROB.value] <= overall_max)
+    ]
+
+    with open(filtered_pos_file, "w") as out_f:
+        for _, row in positive_subset.iterrows():
+            chrom = row[TFColumns.CHROM.value]
+            start = row[TFColumns.START.value]
+            end = row[TFColumns.END.value]
+            strand = row[TFColumns.STRAND.value]
+            seq = row[TFColumns.SEQ.value]
+            score = row[TFColumns.LOG_PROB.value]
+            out_f.write(f"{chrom}\t{start}\t{end}\t{strand}\t{seq}\t{score}\n")
+
+    with open(filtered_neg_file, "w") as out_f:
+
+        def write_out_file(subset, strand):
+            for _, row in subset.iterrows():
+                chrom = row[TFColumns.CHROM.value]
+                start = row[TFColumns.START.value]
+                end = row[TFColumns.END.value]
+                seq = row[TFColumns.SEQ.value]
+                score = row[TFColumns.LOG_PROB.value]
+                out_f.write(f"{chrom}\t{start}\t{end}\t{strand}\t{seq}\t{score}\n")
+
+        write_out_file(neg_subset, "+")
+        write_out_file(rev_neg_subset, "-")
+
+
 def preprocess_structure_pred(output_dir, tf_name, file_path, feature_name):
     """
     Preprocess the structure prediction file s.t. we filter out all reads
@@ -405,7 +480,14 @@ if __name__ == "__main__":
 
         # now that we score the positive, and forward, reverse sequences for negatives,
         # we should preprocess based on the overlapping score distributions
-        # TODO ^ above
+        positive_scores, negative_scores, rev_negative_scores = read_scores(args)
+        overall_min, overall_max = get_overlap_range(
+            positive_scores, negative_scores, rev_negative_scores
+        )
+
+        # now we will read the files again, and only keep those
+        # that are in the overlapping range
+        filter_scores(args, overall_min, overall_max)
 
     # TODO: based off of the regions found in the previous files
     # create the preprocessed structural feature vectors as well
