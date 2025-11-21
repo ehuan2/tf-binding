@@ -17,6 +17,10 @@ from helpers import (
     read_samples,
 )
 
+from sklearn.neighbors import KernelDensity
+import numpy as np
+from tqdm import tqdm
+
 
 def plot_score_distributions(
     positive_scores, negative_scores, rev_negative_scores, tf_name, subset=False
@@ -122,6 +126,45 @@ def subset_scores_in_range(scores, overall_min, overall_max):
     return [score for score in scores if overall_min <= score <= overall_max]
 
 
+def score_kde(pos_scores, neg_scores, rev_neg_scores):
+    """
+    Given the positive, negative and reverse negative scores, fit a KDE to each
+    Then, calculate the density for all the scores, and calculate the number of true positives,
+    false positives, true negatives, and false negatives.
+    """
+
+    kde_pos_data = np.array(pos_scores).reshape(-1, 1)
+    kde = KernelDensity(kernel="gaussian", bandwidth=0.3).fit(kde_pos_data)
+
+    kde_neg_data = np.array(neg_scores).reshape(-1, 1)
+    kde_neg = KernelDensity(kernel="gaussian", bandwidth=0.3).fit(kde_neg_data)
+
+    kde_rev_neg_data = np.array(rev_neg_scores).reshape(-1, 1)
+    kde_rev_neg = KernelDensity(kernel="gaussian", bandwidth=0.3).fit(kde_rev_neg_data)
+
+    # now let's go over all the positive scores and calculate their densities
+    def classify_scores(scores):
+        pos_densities = kde.score_samples(np.array(scores).reshape(-1, 1))
+        neg_densities = kde_neg.score_samples(np.array(scores).reshape(-1, 1))
+        rev_neg_densities = kde_rev_neg.score_samples(np.array(scores).reshape(-1, 1))
+
+        pos = sum(
+            1
+            for i in tqdm(range(len(pos_densities)))
+            if pos_densities[i] > neg_densities[i]
+            and pos_densities[i] > rev_neg_densities[i]
+        )
+        neg = len(pos_densities) - pos
+        return pos, neg
+
+    tp, fn = classify_scores(pos_scores)
+    fp, tn = classify_scores(neg_scores)
+    fp_rev, tn_rev = classify_scores(rev_neg_scores)
+
+    print(f"True Positives: {tp}, False Negatives: {fn}")
+    print(f"False Positives: {fp + fp_rev}, True Negatives: {tn + tn_rev}")
+
+
 if __name__ == "__main__":
     args = get_args()
 
@@ -161,3 +204,5 @@ if __name__ == "__main__":
     plot_score_distributions(
         pos_subset, neg_subset, rev_neg_subset, args.tf, subset=True
     )
+
+    score_kde(pos_subset, neg_subset, rev_neg_subset)
