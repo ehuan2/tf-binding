@@ -46,7 +46,6 @@ class Config:
         parser.add_argument(
             "--tf",
             type=str,
-            required=True,
             help="The transcription factor to use for training and evaluation",
         )
         parser.add_argument(
@@ -58,14 +57,41 @@ class Config:
         parser.add_argument(
             "--train_split",
             type=float,
-            default=0.8,
             help="The proportion of data to use for training",
         )
         parser.add_argument(
             "--batch_size",
             type=int,
-            default=32,
             help="The batch size to use for training",
+        )
+        parser.add_argument(
+            "--pwm_file",
+            type=str,
+            default="data/factorbookMotifPwm.txt",
+            help="The file name of the probability weight matrix (PWM) file",
+        )
+        parser.add_argument(
+            "--pred_struct_data_dir",
+            type=str,
+            help="The directory containing DNA predicted structure data",
+        )
+        parser.add_argument(
+            "--mgw_file_name",
+            type=str,
+            default="hg19.MGW.wig.bw",
+            help="The file name of the Minor Groove Width (MGW) bigwig file",
+        )
+        parser.add_argument(
+            "--use_mgws",
+            action="store_true",
+            default=None,
+            help="Whether to use Minor Groove Width (MGW) features in the model",
+        )
+        parser.add_argument(
+            "--use_probs",
+            action="store_true",
+            default=None,
+            help="Whether to use the probability vector of the sequence in the model",
         )
 
         # only parse the args that we know, and throw out what we don't know
@@ -115,6 +141,23 @@ class Config:
         assert os.path.exists(
             self.pred_struct_data_dir
         ), f"DNA predicted structure data directory {self.pred_struct_data_dir} does not exist"
+
+        assert self.tf is not None, "Transcription factor (--tf) must be specified"
+
+        # now let's rewrite the config's keys that are not defined (boolean):
+        for key in ["use_mgws", "use_probs"]:
+            if not hasattr(self, key) or getattr(self, key) is None:
+                setattr(self, key, False)
+
+        # now we set the defaults
+        defaults = {
+            "batch_size": 32,
+            "train_split": 0.8,
+        }
+
+        for key, value in defaults.items():
+            if not hasattr(self, key) or getattr(self, key) is None:
+                setattr(self, key, value)
 
 
 def get_model_instance(config: Config) -> BaseModel:

@@ -7,6 +7,7 @@ This is the main script to run a model given the specified yaml configuration fi
 from models.config import Config, get_model_instance
 from dataloaders import get_data_splits
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 if __name__ == "__main__":
     config = Config()
@@ -22,9 +23,8 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
-    for batch in train_loader:
+    for batch in tqdm(train_loader):
         print("Training batch:", batch)
-        break
 
     # Then we train the model and evaluate
     # model.train(train_loader)
