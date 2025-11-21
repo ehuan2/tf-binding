@@ -67,7 +67,6 @@ class Config:
         parser.add_argument(
             "--pwm_file",
             type=str,
-            default="data/factorbookMotifPwm.txt",
             help="The file name of the probability weight matrix (PWM) file",
         )
         parser.add_argument(
@@ -78,7 +77,6 @@ class Config:
         parser.add_argument(
             "--mgw_file_name",
             type=str,
-            default="hg19.MGW.wig.bw",
             help="The file name of the Minor Groove Width (MGW) bigwig file",
         )
         parser.add_argument(
@@ -153,6 +151,8 @@ class Config:
         defaults = {
             "batch_size": 32,
             "train_split": 0.8,
+            "pwm_file": "data/factorbookMotifPwm.txt",
+            "mgw_file_name": "hg19.MGW.wig.bw",
         }
 
         for key, value in defaults.items():

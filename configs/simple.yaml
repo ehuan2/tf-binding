@@ -1,4 +1,6 @@
 architecture: simple
-tf: CTCF
-pred_struct_data_dir: /path/to/pred
-use_seq: true
+tf: PAX5
+pred_struct_data_dir: /path/to/pred/
+use_mgws: true
+batch_size: 32
+use_probs: true

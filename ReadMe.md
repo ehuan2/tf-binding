@@ -49,6 +49,16 @@ Take the `configs/simple.yaml` as an example, where you can set the following:
 3. `preprocess_data_dir`, default is `data/tf_sites`,
 4. `train_split`, default is 0.8.
 5. `batch_size`, default is 32.
+6. `pwm_file`, file containing the Position Weight Matrix. Should be the same used in the preprocessing step and look like:
+```
+GFI1	8	1.000000,1.000000,0.000000,0.000000,0.626866,0.000000,0.671642,0.000000,	0.000000,0.000000,0.298507,1.000000,0.000000,0.716418,0.000000,0.000000,	0.000000,0.000000,0.000000,0.000000,0.000000,0.283582,0.000000,1.000000,	0.000000,0.000000,0.701493,0.000000,0.373134,0.000000,0.328358,0.000000,
+```
+where the tabs delimit the nucleotide probabilities.
+7. `pred_struct_data_dir`, the directory containing the BigWig files. **Note these files must all be in the same directory**.
+8. `mgw_file_name`, the filename in the directory in (7) that defines the major groove width file.
+9. `use_mgws`, whether the filename in (8) is used or not in the model prediction.
+10. `use_probs`, whether or not we will use the probability scores from the position weight matrix per nucleotide.
+
 
 ## Contributing
 We use some autoformatters, such as `black` to ensure readability.
