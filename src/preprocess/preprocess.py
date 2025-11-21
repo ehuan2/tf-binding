@@ -7,14 +7,13 @@ and the true regions of binding sites.
 
 Outputs to data/tf_sites/ by default, where there is a folder per each TF.
 """
-# change the pythonpath to the src/ directory
 import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import argparse
 from tqdm import tqdm
+from preprocess_helpers import get_args
 from helpers import (
     TFColumns,
     read_negative_samples,
@@ -23,55 +22,6 @@ from helpers import (
 )
 from Bio import SeqIO
 import numpy as np
-
-
-def get_args():
-    parser = argparse.ArgumentParser(
-        description="Preprocess script for getting positive and negative examples of binding sites."
-    )
-    parser.add_argument(
-        "--chip_seq_file",
-        type=str,
-        default="data/wgEncodeRegTfbsClusteredV3.GM12878.merged.bed",
-        help="Path to the ChIP-seq data file.",
-    )
-    parser.add_argument(
-        "--true_tf_file",
-        type=str,
-        default="data/factorbookMotifPos.txt",
-        help="Path to the file containing true transcription factor binding sites.",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="data/tf_sites",
-        help="Directory to save the output files.",
-    )
-    parser.add_argument(
-        "--fasta_data_dir",
-        type=str,
-        default="data/fasta",
-        help="Directory containing fasta files.",
-    )
-    parser.add_argument(
-        "--tf",
-        type=str,
-        default=None,
-        help="Specific transcription factor to process (default: all).",
-    )
-    parser.add_argument(
-        "--pwm_file",
-        type=str,
-        default="data/factorbookMotifPwm.txt",
-        help="The probability weight matrix file to read from for negative sequence processing.",
-    )
-    parser.add_argument(
-        "--mgw_path",
-        type=str,
-        default=None,
-        help="Path to the Minor Groove Width (MGW) data file for preprocessing.",
-    )
-    return parser.parse_args()
 
 
 def generate_positive_examples(true_tf_file, output_dir, specific_tf):
@@ -253,7 +203,7 @@ def preprocess_seq(output_dir, tf_name, pwm_file):
 
             score = score_seq(pwm, str(subsequence))
 
-            return f"{chrom}\t{str(subsequence)}\t{score}"
+            return f"{chrom}\t{start}\t{end}\t{strand}\t{str(subsequence)}\t{score}"
 
         return handle_seq_fn
 
@@ -452,6 +402,10 @@ if __name__ == "__main__":
     if args.tf is not None:
         preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file)
         preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file, reverse=True)
+
+        # now that we score the positive, and forward, reverse sequences for negatives,
+        # we should preprocess based on the overlapping score distributions
+        # TODO ^ above
 
     # TODO: based off of the regions found in the previous files
     # create the preprocessed structural feature vectors as well
