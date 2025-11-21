@@ -240,6 +240,13 @@ def get_classifier_rates(pos_scores, neg_scores, rev_neg_scores, tf_name):
     plt.savefig(f"./figs/roc_curve_{tf_name}.png")
     plt.close()
 
+    # finally, calculate the AUROC
+    auroc = 0.0
+    for i in range(1, len(tprs)):
+        # calculate the trapezoid area and add to auroc
+        auroc += (fprs[i] - fprs[i - 1]) * (tprs[i] + tprs[i - 1]) / 2.0
+    print(f"AUROC: {auroc}")
+
 
 if __name__ == "__main__":
     args = get_args()
