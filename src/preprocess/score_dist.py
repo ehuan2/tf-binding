@@ -19,7 +19,7 @@ from helpers import (
 
 
 def plot_score_distributions(
-    positive_scores, negative_scores, rev_negative_scores, tf_name
+    positive_scores, negative_scores, rev_negative_scores, tf_name, subset=False
 ):
     """
     Plot the score distributions for positive, negative, and reverse negative samples.
@@ -43,7 +43,12 @@ def plot_score_distributions(
     plt.xlabel("Score")
     plt.ylabel("Density")
     plt.legend()
-    plt.savefig("./figs/score_distributions_" + tf_name + ".png")
+
+    save_png = "./figs/score_distributions_" + tf_name
+    if subset:
+        save_png += "_subset"
+
+    plt.savefig(save_png + ".png")
 
 
 def read_scores(args):
@@ -79,6 +84,44 @@ def read_scores(args):
     return positive_scores, negative_scores, rev_negative_scores
 
 
+def get_overlap_range(pos_scores, neg_scores, rev_neg_scores):
+    """
+    Get the overlapping score range between positive and negative samples.
+    """
+
+    def get_range(scores):
+        """
+        Get the min and max range of the scores.
+        """
+        return min(scores), max(scores)
+
+    # now let's filter the scores based on the ranges
+    pos_range = get_range(pos_scores)
+    neg_range = get_range(neg_scores)
+    rev_neg_range = get_range(rev_neg_scores)
+
+    # now let's get the overlap, i.e. the lower bound is the min of the positive scores,
+    # the max is the max of the negative/rev negative scores
+    overall_min = pos_range[0]
+    overall_max = max(neg_range[1], rev_neg_range[1])
+    return overall_min, overall_max
+
+
+def proportion_in_range(scores, overall_min, overall_max):
+    """
+    Calculate the proportion of scores that fall within the specified range.
+    """
+    count_in_range = sum(1 for score in scores if overall_min <= score <= overall_max)
+    return count_in_range / len(scores) if scores else 0
+
+
+def subset_scores_in_range(scores, overall_min, overall_max):
+    """
+    Subset the scores to only those within the specified range.
+    """
+    return [score for score in scores if overall_min <= score <= overall_max]
+
+
 if __name__ == "__main__":
     args = get_args()
 
@@ -87,4 +130,34 @@ if __name__ == "__main__":
     positive_scores, negative_scores, rev_negative_scores = read_scores(args)
     plot_score_distributions(
         positive_scores, negative_scores, rev_negative_scores, args.tf
+    )
+
+    overall_min, overall_max = get_overlap_range(
+        positive_scores, negative_scores, rev_negative_scores
+    )
+    print(f"Overall score range: {overall_min} to {overall_max}")
+
+    print(
+        "Proportion of positive scores in range:",
+        proportion_in_range(positive_scores, overall_min, overall_max),
+    )
+
+    print(
+        "Proportion of negative scores in range:",
+        proportion_in_range(negative_scores, overall_min, overall_max),
+    )
+
+    print(
+        "Proportion of reverse negative scores in range:",
+        proportion_in_range(rev_negative_scores, overall_min, overall_max),
+    )
+
+    pos_subset = subset_scores_in_range(positive_scores, overall_min, overall_max)
+    neg_subset = subset_scores_in_range(negative_scores, overall_min, overall_max)
+    rev_neg_subset = subset_scores_in_range(
+        rev_negative_scores, overall_min, overall_max
+    )
+
+    plot_score_distributions(
+        pos_subset, neg_subset, rev_neg_subset, args.tf, subset=True
     )
