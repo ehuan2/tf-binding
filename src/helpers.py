@@ -66,7 +66,12 @@ def read_positive_samples(true_tf_file, include_index=True):
         TFColumns.CHROM.value,
         TFColumns.START.value,
         TFColumns.END.value,
-        TFColumns.TF_NAME.value,
+    ]
+
+    if include_index:
+        names.append(TFColumns.TF_NAME.value)
+
+    names += [
         TFColumns.SCORE.value,
         TFColumns.STRAND.value,
     ]

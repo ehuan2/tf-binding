@@ -23,10 +23,10 @@ clean_rev_best_neg_seqs:
 	rm -r data/tf_sites/*/negative/reverse_best_negative_sequences.txt
 
 preprocess:
-	python src/preprocess.py
+	python src/preprocess/preprocess.py
 
 run_simple:
 	python src/main.py --config real_configs/simple.yaml
 
 preprocess_ctcf:
-	python src/preprocess.py --tf CTCF --pwm_file ./data/factorbookMotifPwm.txt
+	python src/preprocess/preprocess.py --tf CTCF --pwm_file ./data/factorbookMotifPwm.txt

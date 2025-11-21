@@ -7,10 +7,13 @@ and the true regions of binding sites.
 
 Outputs to data/tf_sites/ by default, where there is a folder per each TF.
 """
-
-import argparse
 import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from tqdm import tqdm
+from preprocess_helpers import get_args, read_scores, get_overlap_range
 from helpers import (
     TFColumns,
     read_negative_samples,
@@ -19,55 +22,6 @@ from helpers import (
 )
 from Bio import SeqIO
 import numpy as np
-
-
-def get_args():
-    parser = argparse.ArgumentParser(
-        description="Preprocess script for getting positive and negative examples of binding sites."
-    )
-    parser.add_argument(
-        "--chip_seq_file",
-        type=str,
-        default="data/wgEncodeRegTfbsClusteredV3.GM12878.merged.bed",
-        help="Path to the ChIP-seq data file.",
-    )
-    parser.add_argument(
-        "--true_tf_file",
-        type=str,
-        default="data/factorbookMotifPos.txt",
-        help="Path to the file containing true transcription factor binding sites.",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="data/tf_sites",
-        help="Directory to save the output files.",
-    )
-    parser.add_argument(
-        "--fasta_data_dir",
-        type=str,
-        default="data/fasta",
-        help="Directory containing fasta files.",
-    )
-    parser.add_argument(
-        "--tf",
-        type=str,
-        default=None,
-        help="Specific transcription factor to process (default: all).",
-    )
-    parser.add_argument(
-        "--pwm_file",
-        type=str,
-        default=None,
-        help="The probability weight matrix file to read from for negative sequence processing.",
-    )
-    parser.add_argument(
-        "--mgw-path",
-        type=str,
-        default=None,
-        help="Path to the Minor Groove Width (MGW) data file for preprocessing.",
-    )
-    return parser.parse_args()
 
 
 def generate_positive_examples(true_tf_file, output_dir, specific_tf):
@@ -180,9 +134,7 @@ def preprocess_range(output_dir, tf_name, output_name, is_pos, handle_seq_fn):
             record = SeqIO.read(fasta_file, "fasta")
 
             for _, site in chrom_pos_sites.iterrows():
-                start = site[TFColumns.START.value]
-                end = site[TFColumns.END.value]
-                subsequence = handle_seq_fn(record, start, end)
+                subsequence = handle_seq_fn(site, record)
                 out_f.write(f"{subsequence}\n")
 
 
@@ -230,15 +182,28 @@ def preprocess_seq(output_dir, tf_name, pwm_file):
     Preprocess the sequences for a given TF name.
     """
 
-    def no_score_seq_fn(record, start, end):
-        subsequence = record.seq[start:end]
-        return str(subsequence)
+    def no_score_seq_fn(site, record):
+        start = site[TFColumns.START.value]
+        end = site[TFColumns.END.value]
+        return str(record.seq[start:end]).upper()
 
     def pwm_wrapper(pwm):
-        def handle_seq_fn(record, start, end):
-            subsequence = record.seq[start:end]
+        def handle_seq_fn(site, record):
+            chrom = site[TFColumns.CHROM.value]
+            start = site[TFColumns.START.value]
+            end = site[TFColumns.END.value]
+            strand = site[TFColumns.STRAND.value]
+
+            subsequence = str(record.seq[start:end]).upper()
+
+            if strand == "-":
+                subsequence = get_negative_strand_subsequence(subsequence)
+
+            subsequence = subsequence.upper()
+
             score = score_seq(pwm, str(subsequence))
-            return f"{str(subsequence)}\t{score}"
+
+            return f"{chrom}\t{start}\t{end}\t{strand}\t{str(subsequence)}\t{score}"
 
         return handle_seq_fn
 
@@ -277,7 +242,7 @@ def get_negative_strand_subsequence(sequence):
     """
     Given a sequence, return its negative strand subsequence.
     """
-    complement = {"A": "T", "T": "A", "C": "G", "G": "C", "N": "N"}
+    complement = {"A": "T", "T": "A", "C": "G", "G": "C"}
     neg_strand = "".join(complement.get(base, "N") for base in reversed(sequence))
     return neg_strand
 
@@ -367,6 +332,81 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file, reverse=False):
             )
 
 
+def filter_scores(args, overall_min, overall_max):
+    pos_seqs_file = os.path.join(args.output_dir, args.tf, "positive", "sequences.txt")
+    neg_intervals_file = os.path.join(
+        args.output_dir, args.tf, "negative", "best_negative_sequences.txt"
+    )
+    rev_neg_intervals_file = os.path.join(
+        args.output_dir, args.tf, "negative", "reverse_best_negative_sequences.txt"
+    )
+
+    pos_names = [
+        TFColumns.CHROM.value,
+        TFColumns.START.value,
+        TFColumns.END.value,
+        TFColumns.STRAND.value,
+        TFColumns.SEQ.value,
+        TFColumns.LOG_PROB.value,
+    ]
+    positive_pr = read_samples(pos_seqs_file, names=pos_names)
+
+    neg_names = [
+        TFColumns.CHROM.value,
+        TFColumns.START.value,
+        TFColumns.END.value,
+        TFColumns.SEQ.value,
+        TFColumns.LOG_PROB.value,
+    ]
+    neg_pr = read_samples(neg_intervals_file, names=neg_names)
+    rev_neg_pr = read_samples(rev_neg_intervals_file, names=neg_names)
+
+    # now we filter based on the scores and write out new files
+    filtered_pos_file = os.path.join(
+        args.output_dir, args.tf, "positive", "overlap.txt"
+    )
+    filtered_neg_file = os.path.join(
+        args.output_dir, args.tf, "negative", "overlap.txt"
+    )
+
+    positive_subset = positive_pr[
+        (positive_pr[TFColumns.LOG_PROB.value] >= overall_min)
+        & (positive_pr[TFColumns.LOG_PROB.value] <= overall_max)
+    ]
+    neg_subset = neg_pr[
+        (neg_pr[TFColumns.LOG_PROB.value] >= overall_min)
+        & (neg_pr[TFColumns.LOG_PROB.value] <= overall_max)
+    ]
+    rev_neg_subset = rev_neg_pr[
+        (rev_neg_pr[TFColumns.LOG_PROB.value] >= overall_min)
+        & (rev_neg_pr[TFColumns.LOG_PROB.value] <= overall_max)
+    ]
+
+    with open(filtered_pos_file, "w") as out_f:
+        for _, row in positive_subset.iterrows():
+            chrom = row[TFColumns.CHROM.value]
+            start = row[TFColumns.START.value]
+            end = row[TFColumns.END.value]
+            strand = row[TFColumns.STRAND.value]
+            seq = row[TFColumns.SEQ.value]
+            score = row[TFColumns.LOG_PROB.value]
+            out_f.write(f"{chrom}\t{start}\t{end}\t{strand}\t{seq}\t{score}\n")
+
+    with open(filtered_neg_file, "w") as out_f:
+
+        def write_out_file(subset, strand):
+            for _, row in subset.iterrows():
+                chrom = row[TFColumns.CHROM.value]
+                start = row[TFColumns.START.value]
+                end = row[TFColumns.END.value]
+                seq = row[TFColumns.SEQ.value]
+                score = row[TFColumns.LOG_PROB.value]
+                out_f.write(f"{chrom}\t{start}\t{end}\t{strand}\t{seq}\t{score}\n")
+
+        write_out_file(neg_subset, "+")
+        write_out_file(rev_neg_subset, "-")
+
+
 def preprocess_structure_pred(output_dir, tf_name, file_path, feature_name):
     """
     Preprocess the structure prediction file s.t. we filter out all reads
@@ -437,6 +477,17 @@ if __name__ == "__main__":
     if args.tf is not None:
         preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file)
         preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file, reverse=True)
+
+        # now that we score the positive, and forward, reverse sequences for negatives,
+        # we should preprocess based on the overlapping score distributions
+        positive_scores, negative_scores, rev_negative_scores = read_scores(args)
+        overall_min, overall_max = get_overlap_range(
+            positive_scores, negative_scores, rev_negative_scores
+        )
+
+        # now we will read the files again, and only keep those
+        # that are in the overlapping range
+        filter_scores(args, overall_min, overall_max)
 
     # TODO: based off of the regions found in the previous files
     # create the preprocessed structural feature vectors as well
