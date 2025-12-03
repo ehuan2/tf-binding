@@ -4,6 +4,7 @@ from sklearn.svm import LinearSVC
 
 class SVMModel(BaseModel):
     """
+    INCOMPLETE
     Simple model that takes in the position weight matrix, the different DNA
     structural features, and combines them to classify whether a region is a TF
     binding site or not.
@@ -11,7 +12,7 @@ class SVMModel(BaseModel):
 
     def __init__(self, config):
         self.config = config
-        self.model = LinearSVC(C=config.C)
+        # self.model = LinearSVC(C=config.C)
 
     def train(self, data):
         # Fitting model
