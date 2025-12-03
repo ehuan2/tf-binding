@@ -132,7 +132,6 @@ class Config:
             with open(args.config, "r") as file:
                 data = yaml.safe_load(file)
 
-            print(data['preprocess_data_dir'])
             for key in config_keys:
                 if key in data.keys():
                     setattr(self, key, data[key])
@@ -141,7 +140,7 @@ class Config:
 
         # now we take all the arguments we want and we copy it over!
         for key, value in args._get_kwargs():
-            if value is not None:
+            if value is not None and getattr(args, key) != parser.get_default(key):
                 setattr(self, key, value)
 
         print("Loaded preprocess_data_dir:", self.preprocess_data_dir)
