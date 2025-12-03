@@ -74,15 +74,25 @@ class Config:
             type=int,
             help="The batch size to use for training",
         )
+
+        # ---- PWM features ----
         parser.add_argument(
             "--pwm_file",
             type=str,
             help="The file name of the probability weight matrix (PWM) file",
         )
         parser.add_argument(
+            "--use_probs",
+            action="store_true",
+            default=None,
+            help="Whether to use the probability vector of the sequence in the model",
+        )
+
+        # ---- Predicted Structure files ----
+        parser.add_argument(
             "--pred_struct_data_dir",
             type=str,
-            help="The directory containing DNA predicted structure data",
+            help="The directory containing DNA predicted structure data as bigWig files (MGW, ProT, Roll/OC2, HelT)",
         )
         parser.add_argument(
             "--pred_struct_features",
@@ -170,6 +180,12 @@ class Config:
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
             "pred_struct_features": [],
+
+            # SVM Defaults
+            "window_size": 101,
+            "svm_kernal": "linear",
+            "svm_c": 1.0,
+            "svm_gamma": "scale"
         }
 
         for feature in PredStructFeature:
@@ -198,5 +214,10 @@ def get_model_instance(config: Config) -> BaseModel:
         from models.simple import SimpleModel
 
         return SimpleModel(config)
+    
+    elif config.architecture == ModelSelection.SVM:
+        from models.svm import SVMModel
+        return SVMModel(config)
+    
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
