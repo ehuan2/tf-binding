@@ -123,6 +123,8 @@ class SVMDataset:
             path = os.path.join(shape_dir, fname)
             if not os.path.exists(path):
                 raise FileNotFoundError(f"GBshape missing: {path}")
+            
+            print(shape_name)
 
             self.shape_tracks[shape_name] = pyBigWig.open(path)
 
