@@ -124,6 +124,7 @@ class Config:
         # the set of potential keys should be defined by the config + any
         # other special ones here (such as the model args)
         config_keys = list(args.__dict__.keys())
+        print(config_keys)
 
         # first read the config file and set the current attributes to it
         # then parse through the other arguments as that's what we want use to
@@ -132,6 +133,7 @@ class Config:
             with open(args.config, "r") as file:
                 data = yaml.safe_load(file)
 
+            print(data.keys())
             for key in config_keys:
                 if key in data.keys():
                     setattr(self, key, data[key])
