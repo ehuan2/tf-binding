@@ -135,11 +135,15 @@ class Config:
             for key in config_keys:
                 if key in data.keys():
                     setattr(self, key, data[key])
+            # for key,value in data.items():
+            #     setattr(self, key, value)
 
         # now we take all the arguments we want and we copy it over!
         for key, value in args._get_kwargs():
             if value is not None:
                 setattr(self, key, value)
+
+        print("Loaded preprocess_data_dir:", self.preprocess_data_dir)
 
         # require that the architecture and data path must exist
         assert all(
