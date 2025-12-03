@@ -184,6 +184,17 @@ class SVMDataset:
         X = np.concatenate([seq_encoded, shape_features]).astype(np.float32)
         y = self.label
 
+        # ---- DEBUGGING ----
+        if idx < 1 and self.config.debug:
+            print("----- DEBUG SAMPLE -----")
+            print("Seq:", seq)
+            print("Seq encoded shape:", seq_encoded.shape)
+            print("Shape features:", {k: v.shape if hasattr(v, 'shape') else len(v) 
+                                    for k, v in self.shape_tracks.items()})
+            print("X shape:", X.shape)
+            print("label:", y)
+            print("-------------------------")
+
         return X, y
 
 def get_data_splits(config: Config):
@@ -218,6 +229,10 @@ def get_data_splits(config: Config):
         DatasetClass = None
 
     assert DatasetClass is not None, f'Dataset Class {DatasetClass} not implemented.'
+
+    # ----------- DEBUGGING -----------
+    print(f"[DEBUG] Using dataset class: {DatasetClass.__name__}")
+
 
     pos_dataset = DatasetClass(pos_df, is_tf_site=1, config=config)
     neg_dataset = DatasetClass(neg_df, is_tf_site=0, config=config)
