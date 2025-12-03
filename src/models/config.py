@@ -15,6 +15,7 @@ class ModelSelection(str, Enum):
     """Enum that contains all possible model choices."""
 
     SIMPLE = "simple"
+    SVM = "svm"
 
 
 class Config:
@@ -64,26 +65,12 @@ class Config:
             type=int,
             help="The batch size to use for training",
         )
+
+        # ---- PWM features ----
         parser.add_argument(
             "--pwm_file",
             type=str,
             help="The file name of the probability weight matrix (PWM) file",
-        )
-        parser.add_argument(
-            "--pred_struct_data_dir",
-            type=str,
-            help="The directory containing DNA predicted structure data",
-        )
-        parser.add_argument(
-            "--mgw_file_name",
-            type=str,
-            help="The file name of the Minor Groove Width (MGW) bigwig file",
-        )
-        parser.add_argument(
-            "--use_mgws",
-            action="store_true",
-            default=None,
-            help="Whether to use Minor Groove Width (MGW) features in the model",
         )
         parser.add_argument(
             "--use_probs",
@@ -91,6 +78,45 @@ class Config:
             default=None,
             help="Whether to use the probability vector of the sequence in the model",
         )
+
+        # ---- Predicted Structure files ----
+        parser.add_argument(
+            "--pred_struct_data_dir",
+            type=str,
+            help="The directory containing DNA predicted structure data as bigWig files (MGW, ProT, Roll/OC2, HelT)",
+        )
+        parser.add_argument(
+            "--mgw_file_name",
+            type=str,
+            help="The file name of the Minor Groove Width (MGW) bigwig file",
+        )
+        parser.add_argument(
+            "--prot_file_name",
+            type=str,
+            help="The file name of the Propeller Twist (ProT) bigwig file",
+        )
+        parser.add_argument(
+            "--roll_file_name",
+            type=str,
+            help="The file name of the Roll (or OC2) bigwig file",
+        )
+        parser.add_argument(
+            "--helt_file_name",
+            type=str,
+            help="The file name of the Helical Twist (HelT) bigwig file",
+        )
+        parser.add_argument(
+            "--use_mgws",
+            action="store_true",
+            default=None,
+            help="Whether to use Minor Groove Width (MGW) features in the model",
+        )
+
+        # ---- SVM hyperparameters ----
+        parser.add_argument('--window_size', type=int)
+        parser.add_argument('--svm_kernel', type=str, help="Kernel type for the SVM classifier. 'linear' recommended")
+        parser.add_argument('--svm_c', type=float, help='Regularization parameter for SVM. Higher = harder margin, risk of overfitting')
+        parser.add_argument('--svm_gamma', type=str)
 
         # only parse the args that we know, and throw out what we don't know
         args = parser.parse_known_args()[0]
@@ -153,6 +179,12 @@ class Config:
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
             "mgw_file_name": "hg19.MGW.wig.bw",
+
+            # SVM Defaults
+            "window_size": 101,
+            "svm_kernal": "linear",
+            "svm_c": 1.0,
+            "svm_gamma": "scale"
         }
 
         for key, value in defaults.items():
@@ -168,5 +200,10 @@ def get_model_instance(config: Config) -> BaseModel:
         from models.simple import SimpleModel
 
         return SimpleModel(config)
+    
+    elif config.architecture == ModelSelection.SVM:
+        from models.svm import SVMModel
+        return SVMModel(config)
+    
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")

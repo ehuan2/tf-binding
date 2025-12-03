@@ -7,8 +7,12 @@ Custom dataset classes for loading transcription factor binding site data.
 from helpers import (
     read_samples,
     TFColumns,
+    one_hot_encode,
 )
-from models.config import Config
+from models.config import (
+    Config,
+    ModelSelection,
+)
 from preprocess.preprocess import (
     get_negative_strand_subsequence,
     get_pwm,
@@ -19,6 +23,8 @@ import torch
 from torch.utils.data import Dataset, random_split, ConcatDataset
 import os
 import pyBigWig
+import numpy as np
+import pyfaidx
 
 
 class IntervalDataset(Dataset):
@@ -94,6 +100,91 @@ class IntervalDataset(Dataset):
             "label": torch.tensor(self.is_tf_site, dtype=torch.float32),
         }
 
+class SVMDataset:
+    """
+    Dataset that prepares sequence + GBshape features for SVM classification.
+    """
+
+    def __init__(self, pr, is_tf_site, config):
+        self.pr = pr
+        self.label = is_tf_site
+        self.config = config
+
+        # directory with all 4 GBshape files
+        shape_dir = config.pred_struct_data_dir
+
+        # Load shape tracks (mgw, prot, roll, helt)
+        self.shape_tracks = {}
+        for shape_name in ["mgw", "prot", "roll", "helt"]:
+            fname = getattr(config, f"{shape_name}_file_name", None)
+            if fname is None:
+                continue
+
+            path = os.path.join(shape_dir, fname)
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"GBshape missing: {path}")
+
+            self.shape_tracks[shape_name] = pyBigWig.open(path)
+
+        self.window = config.window_size
+
+    def __len__(self):
+        return len(self.pr)
+
+    def __getitem__(self, idx):
+        row = self.pr.iloc[idx]
+
+        chrom = row[TFColumns.CHROM.value]
+        start = int(row[TFColumns.START.value])
+        end   = int(row[TFColumns.END.value])
+        strand = row[TFColumns.STRAND.value]
+
+        seq = row[TFColumns.SEQ.value].upper()
+
+        if strand == "-":
+            seq = get_negative_strand_subsequence(seq)
+
+        seq_len = len(seq)
+
+        if self.window is not None and self.window < seq_len:
+            center = seq_len // 2
+            half = self.window // 2
+            seq = seq[center - half : center + half + 1]
+
+            win_start = start + (center - half)
+            win_end   = start + (center + half + 1)
+        else:
+            win_start = start
+            win_end   = end
+
+        seq_encoded = one_hot_encode(seq).flatten()
+
+        shape_features = []
+
+        for name, bw in self.shape_tracks.items():
+            vals = bw.values(chrom, win_start, win_end)
+            vals = np.nan_to_num(vals)
+
+            if len(vals) != len(seq):
+                # pad or truncate if shape doesnt match
+                if len(vals) < len(seq):
+                    pad_len = len(seq) - len(vals)
+                    vals = np.concatenate([vals, np.zeros(pad_len)])
+                else:
+                    vals = vals[:len(seq)]
+
+            shape_features.append(vals)
+
+        if len(shape_features) > 0:
+            shape_features = np.concatenate(shape_features)
+        else:
+            shape_features = np.array([], dtype=np.float32)
+        
+        # final svm input
+        X = np.concatenate([seq_encoded, shape_features]).astype(np.float32)
+        y = self.label
+
+        return X, y
 
 def get_data_splits(config: Config):
     """
@@ -119,8 +210,17 @@ def get_data_splits(config: Config):
     neg_df = read_samples(neg_file, names=columns)
 
     # now let's create the positive and negative training/testing splits
-    pos_dataset = IntervalDataset(pos_df, is_tf_site=1, config=config)
-    neg_dataset = IntervalDataset(neg_df, is_tf_site=0, config=config)
+    if config.architecture == ModelSelection.SIMPLE:
+        DatasetClass = IntervalDataset
+    elif config.architecture == ModelSelection.SVM:
+        DatasetClass = SVMDataset
+    else:
+        DatasetClass = None
+
+    assert DatasetClass is not None, f'Dataset Class {DatasetClass} not implemented.'
+
+    pos_dataset = DatasetClass(pos_df, is_tf_site=1, config=config)
+    neg_dataset = DatasetClass(neg_df, is_tf_site=0, config=config)
 
     train_size_pos = int(config.train_split * len(pos_dataset))
     test_size_pos = len(pos_dataset) - train_size_pos
