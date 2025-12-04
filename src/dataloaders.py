@@ -259,10 +259,22 @@ class SVMDataset:
     def __getitem__(self, idx):
         row = self.pr.iloc[idx]
         data = self.extractor.extract_features(row)
+
+        # convert structure features dict to list to we can concetante into single input vector
+        struct_dict = data['structure_features']
+        struct_list = [
+            np.asarray(v)
+            for v in struct_dict.values() 
+            if v is not None and np.asarray(v).size > 0
+        ]
+        if len(struct_list) > 0:
+            struct_feats = np.concatenate(struct_list)
+        else:
+            struct_feats = np.array([])
         
         X = np.concatenate(
             data['interval'][TFColumns.SEQ_ENCODED.value],
-            data['structure_features'],
+            struct_feats,
         ).astype(np.float32)
 
         y = data['label']
