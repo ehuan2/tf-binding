@@ -25,7 +25,6 @@ if __name__ == "__main__":
 
     for batch in tqdm(train_loader):
         print("Training batch:", batch)
-        break
 
     # Then we train the model and evaluate
     # model.train(train_loader)
