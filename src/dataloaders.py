@@ -24,7 +24,6 @@ from torch.utils.data import Dataset, random_split, ConcatDataset
 import os
 import pyBigWig
 import numpy as np
-import pyfaidx
 
 
 class IntervalDataset(Dataset):
@@ -121,10 +120,10 @@ class SVMDataset:
                 continue
 
             path = os.path.join(shape_dir, fname)
+            if shape_name == 'prot':
+                path = '~/comp561/hg19.ProT.wig.bw'
             if not os.path.exists(path):
                 raise FileNotFoundError(f"GBshape missing: {path}")
-            
-            print(shape_name)
 
             self.shape_tracks[shape_name] = pyBigWig.open(path)
 
