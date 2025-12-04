@@ -189,6 +189,7 @@ class Config:
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
             "mgw_file_name": "hg19.MGW.wig.bw",
+            "seed": 42,
 
             # SVM Defaults
             "window_size": 101,
