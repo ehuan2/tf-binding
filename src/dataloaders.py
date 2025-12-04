@@ -128,9 +128,9 @@ class SVMDataset:
 
             path = os.path.join(shape_dir, fname)
             if shape_name == 'prot':
-                path = '~/comp561/hg19.ProT.wig.bw'
+                path = '/home/mcb/users/cclark6/comp561/hg19.ProT.wig.bw'
             if not os.path.exists(path):
-                raise FileNotFoundError(f"GBshape missing: {path}")
+                raise FileNotFoundError(f"Struct file not found: {path}")
 
             self.shape_tracks[shape_name] = pyBigWig.open(path)
 
