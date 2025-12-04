@@ -132,12 +132,6 @@ class BaseIntervalExtractor():
             
             struct_feats[name] = vals.astype(np.float32)
         
-        # concatenate struct feats if found
-        if len(struct_feats) > 0:
-            struct_feats = np.concatenate(struct_feats)
-        else:
-            struct_feats = np.zeros(0, dtype=np.float32)
-        
         # pwm scores
         pwm_scores = None
         if self.config.use_probs:
