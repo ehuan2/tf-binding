@@ -1,6 +1,9 @@
 architecture: simple
 tf: PAX5
 pred_struct_data_dir: /path/to/pred/
-use_mgws: true
+pred_struct_features:
+  - MGW
+  - Roll
+  - HelT
 batch_size: 32
 use_probs: true
