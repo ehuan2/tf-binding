@@ -109,12 +109,6 @@ class Config:
             default=None,
             help="List of predicted structure features to use (e.g., MGW, HelT, ProT, Roll, OC2)",
         )
-        parser.add_argument(
-            "--use_probs",
-            action="store_true",
-            default=None,
-            help="Whether to use the probability vector of the sequence in the model",
-        )
 
         # then we finally add on arguments for each structure feature
         # so others can specify paths if they want
