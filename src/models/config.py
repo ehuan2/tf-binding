@@ -190,6 +190,7 @@ class Config:
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
             "pred_struct_features": [],
+            "seed": 42,
 
             # SVM Defaults
             "window_size": 101,
