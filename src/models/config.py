@@ -129,7 +129,6 @@ class Config:
         # first read the config file and set the current attributes to it
         # then parse through the other arguments as that's what we want use to
         # override the config file if supplied
-        print(self.preprocess_data_dir)
         if args.config:
             with open(args.config, "r") as file:
                 data = yaml.safe_load(file)
