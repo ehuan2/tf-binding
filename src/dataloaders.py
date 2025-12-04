@@ -272,10 +272,10 @@ class SVMDataset:
         else:
             struct_feats = np.array([])
         
-        X = np.concatenate(
+        X = np.concatenate([
             data['interval'][TFColumns.SEQ_ENCODED.value],
             struct_feats,
-        ).astype(np.float32)
+        ]).astype(np.float32)
 
         y = data['label']
 
