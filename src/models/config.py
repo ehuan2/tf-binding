@@ -15,7 +15,7 @@ class ModelSelection(str, Enum):
     """Enum that contains all possible model choices."""
 
     SIMPLE = "simple"
-
+    SVM = "svm"
 
 class PredStructFeature(str, Enum):
     """Enum that contains all possible predicted structure features."""
@@ -25,7 +25,6 @@ class PredStructFeature(str, Enum):
     ProT = "ProT"
     Roll = "Roll"
     OC2 = "OC2"
-
 
 class Config:
     """Config class for both yaml and cli arguments."""
@@ -98,8 +97,9 @@ class Config:
         parser.add_argument(
             "--pred_struct_data_dir",
             type=str,
-            help="The directory containing DNA predicted structure data as bigWig files (MGW, ProT, Roll/OC2, HelT)",
+            help="The directory containing DNA predicted structure data",
         )
+
         parser.add_argument(
             "--pred_struct_features",
             nargs="+",
