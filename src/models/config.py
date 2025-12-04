@@ -65,6 +65,12 @@ class Config:
             type=int,
             help="The batch size to use for training",
         )
+        parser.add_argument(
+            "--seed",
+            type=int,
+            default=42,
+            help="Random seed to use",
+        )
 
         # ---- PWM features ----
         parser.add_argument(

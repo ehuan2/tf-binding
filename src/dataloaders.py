@@ -321,8 +321,6 @@ def get_data_splits(config: Config):
 
     # ----------- DEBUGGING -----------
     print(f"[DEBUG] Using dataset class: {DatasetClass.__name__}")
-    item = DatasetClass.__getitem__()
-
 
     pos_dataset = DatasetClass(pos_df, is_tf_site=1, config=config)
     neg_dataset = DatasetClass(neg_df, is_tf_site=0, config=config)
@@ -332,8 +330,10 @@ def get_data_splits(config: Config):
     train_size_neg = int(config.train_split * len(neg_dataset))
     test_size_neg = len(neg_dataset) - train_size_neg
 
-    pos_train, pos_test = random_split(pos_dataset, [train_size_pos, test_size_pos])
-    neg_train, neg_test = random_split(neg_dataset, [train_size_neg, test_size_neg])
+    pos_train, pos_test = random_split(pos_dataset, [train_size_pos, test_size_pos],
+                                       generator=torch.Generator().manual_seed(config.seed))
+    neg_train, neg_test = random_split(neg_dataset, [train_size_neg, test_size_neg],
+                                       generator=torch.Generator().manual_seed(config.seed))
 
     train_dataset = ConcatDataset([pos_train, neg_train])
     test_dataset = ConcatDataset([pos_test, neg_test])
