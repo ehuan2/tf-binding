@@ -46,6 +46,7 @@ class TFColumns(Enum):
     STRAND = "Strand"
     CHROM_INDEX = "Chrom_Index"  # for the chip-seq data, chrx.y, meaningless
     SEQ = "Sequence"
+    SEQ_ENCODED = "Sequence_Encoded"
     LOG_PROB = "Log_Prob"
     MGW = "MGW"
 

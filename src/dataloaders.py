@@ -25,15 +25,20 @@ import os
 import pyBigWig
 import numpy as np
 
+#TODO
+# Only added in the struct files to SVMDataset
+# Add in IntervalDataset
+# Make BaseIntervalDataset, then have IntervalDataset and SVMDataset inherit from that
 
-class IntervalDataset(Dataset):
+class BaseIntervalExtractor():
     """
-    Dataset class for loading intervals of transcription factor binding sites.
+    Base dataset class for loading intervals of transcription factor binding sites.
     Each interval is represented by its chromosomes, start, and end positions,
-    as well as its labels (positive or negative).
+        structural features (MGW, HelT, OC2, Prot, PWM), 
+        as well as its labels (positive or negative).
+    Everything stored as np.array in dicts
     """
-
-    def __init__(self, pr, is_tf_site, config: Config):
+    def __init__(self, pr, is_tf_site, config):
         """
         Args:
             pr (pr.PyRanges): Pyranges containing the intervals.
@@ -43,60 +48,205 @@ class IntervalDataset(Dataset):
         self.is_tf_site = is_tf_site
         self.config = config
 
-        # let's open up all the bigwig files that are specified
-        if config.use_mgws:
-            assert (
-                config.pred_struct_data_dir is not None
-            ), "pred_struct_data_dir must be specified to use mgw features"
-            mgw_bigwig_path = os.path.join(
-                config.pred_struct_data_dir,
-                config.mgw_file_name,
-            )
-            self.bw_file = pyBigWig.open(mgw_bigwig_path)
-
-        if self.config.use_probs:
+        # loading in sequence-level stuff (just PWM right now)
+        if config.use_probs:
             assert (
                 config.pwm_file is not None
             ), "pwm_file must be specified to use probability vector features"
-            # read in the PWM file
             self.pwm = get_pwm(config.pwm_file, config.tf)
+        
+        # loading in structural data (bigwig files)
+        if config.use_wigs:
+            assert (
+                config.pred_struct_data_dir is not None
+            ), "pred_struct_data_dir must be specified to use bigWig features"
+            struct_dir = config.pred_struct_data_dir
+            for shape_name in ['mgw', 'prot', 'oc2', 'helt']:
+                fname = getattr(config, f"{shape_name}_file_name", None)
+                if fname is None:
+                    continue
+                path = os.path.join(struct_dir, fname)
+                self.struct_tracks[shape_name] = pyBigWig.open(path)
+        
+        self.window = config.window_size
+    
+    def extract_features(self, row):
+        """
+        For given row (genomc interval), returns:
+            dict{
+                seq,
+                seq_one_hot_encoded,
+                structural_features,
+                pwm_scores,
+                log_prob,
+                label
+            }
+        """
+        chrom = row[TFColumns.CHROM.value]
+        start = int(row[TFColumns.START.value])
+        end = int(row[TFColumns.END.value])
+        strand = row[TFColumns.STRAND.value]
+        seq = row[TFColumns.SEQ.value].upper()
+
+        if strand == '-':
+            seq = get_negative_strand_subsequence(seq)
+
+        seq_len = len(seq)
+
+        # grabbing sequence windows
+        if self.window is not None and self.window < seq_len:
+            center = seq_len // 2
+            half = self.window // 2
+            seq = seq[center-half : center+half+1]
+            
+            win_start = start + (center - half)
+            win_end = start + (center + half + 1)
+        else:
+            win_start = start
+            win_end = end
+        
+        # one-hot encode sequence
+        # store as flattened numpy for now to easily convert
+        seq_encoded = one_hot_encode(seq).flatten().astype(np.float32)
+
+        # store in same dict
+        interval_dict = {
+            TFColumns.SEQ.value: seq,
+            TFColumns.SEQ_ENCODED.value: seq_encoded,
+            TFColumns.LOG_PROB.value: row[TFColumns.LOG_PROB.value]
+        }
+
+        # adding in structural features
+        struct_feats = {}
+        for name,bw in self.struct_tracks.items():
+            vals = bw.values(chrom, win_start, win_end)
+            vals = np.nan_to_num(vals)
+
+            # pad or truncate to match seq len, if needed
+            if len(vals) < len(seq):
+                pad_len = len(seq) - len(vals)
+                vals = np.concatenate([vals, np.zeros(pad_len)])
+            elif len(vals) > len(seq):
+                vals = vals[:len(seq)]
+            
+            struct_feats[name] = vals.astype(np.float32)
+        
+        # concatenate struct feats if found
+        if len(struct_feats) > 0:
+            struct_feats = np.concatenate(struct_feats)
+        else:
+            struct_feats = np.zeros(0, dtype=np.float32)
+        
+        # pwm scores
+        pwm_scores = None
+        if self.config.use_probs:
+            pwm_scores = np.array(get_ind_score(self.pwm, seq), dtype=np.float32)
+        struct_feats['pwm_scores'] = pwm_scores
+        
+        return {
+            'interval': interval_dict,
+            'structure_features': struct_feats,
+            'label': np.array(self.is_tf_site, dtype=np.float32)
+        }
+
+# class IntervalDataset(Dataset):
+#     """
+#     Dataset class for loading intervals of transcription factor binding sites.
+#     Each interval is represented by its chromosomes, start, and end positions,
+#     as well as its labels (positive or negative).
+#     """
+
+#     def __init__(self, pr, is_tf_site, config: Config):
+#         """
+#         Args:
+#             pr (pr.PyRanges): Pyranges containing the intervals.
+#             is_tf_site (int): Label indicating if the interval is a transcription factor binding site (1) or not (0).
+#         """
+#         self.pr = pr
+#         self.is_tf_site = is_tf_site
+#         self.config = config
+
+#         # let's open up all the bigwig files that are specified
+#         if config.use_mgws:
+#             assert (
+#                 config.pred_struct_data_dir is not None
+#             ), "pred_struct_data_dir must be specified to use mgw features"
+#             mgw_bigwig_path = os.path.join(
+#                 config.pred_struct_data_dir,
+#                 config.mgw_file_name,
+#             )
+#             self.bw_file = pyBigWig.open(mgw_bigwig_path)
+
+#         if self.config.use_probs:
+#             assert (
+#                 config.pwm_file is not None
+#             ), "pwm_file must be specified to use probability vector features"
+#             # read in the PWM file
+#             self.pwm = get_pwm(config.pwm_file, config.tf)
+
+#     def __len__(self):
+#         return len(self.pr)
+
+#     def __getitem__(self, idx):
+#         interval = self.pr.iloc[idx]
+
+#         interval_dict = {
+#             TFColumns.SEQ.value: interval[TFColumns.SEQ.value],
+#             TFColumns.LOG_PROB.value: interval[TFColumns.LOG_PROB.value],
+#         }
+
+#         structure_features = {}
+
+#         if self.config.use_probs:
+#             seq = interval[TFColumns.SEQ.value]
+#             strand = interval[TFColumns.STRAND.value]
+#             # now, depending on the strand, we may need to reverse complement
+#             if strand == "-":
+#                 seq = get_negative_strand_subsequence(seq)
+
+#             pwm_scores = torch.tensor(get_ind_score(self.pwm, seq), dtype=torch.float32)
+#             structure_features["pwm_scores"] = pwm_scores
+
+#         if self.config.use_mgws:
+#             # extract the mgw features from the bigwig file
+#             mgw_values = self.bw_file.values(
+#                 interval[TFColumns.CHROM.value],
+#                 interval[TFColumns.START.value],
+#                 interval[TFColumns.END.value],
+#             )
+#             structure_features["mgw"] = torch.tensor(mgw_values, dtype=torch.float32)
+
+#         return {
+#             "interval": interval_dict,
+#             "structure_features": structure_features,
+#             "label": torch.tensor(self.is_tf_site, dtype=torch.float32),
+#         }
+
+class IntervalDataset(Dataset):
+    def __init__(self, pr, is_tf_site, config):
+        self.extractor = BaseIntervalExtractor(pr, is_tf_site, config)
+        self.pr = pr
 
     def __len__(self):
         return len(self.pr)
 
     def __getitem__(self, idx):
-        interval = self.pr.iloc[idx]
+        row = self.pr.iloc[idx]
+        data = self.extractor.extract_features(row)
 
-        interval_dict = {
-            TFColumns.SEQ.value: interval[TFColumns.SEQ.value],
-            TFColumns.LOG_PROB.value: interval[TFColumns.LOG_PROB.value],
-        }
-
-        structure_features = {}
-
-        if self.config.use_probs:
-            seq = interval[TFColumns.SEQ.value]
-            strand = interval[TFColumns.STRAND.value]
-            # now, depending on the strand, we may need to reverse complement
-            if strand == "-":
-                seq = get_negative_strand_subsequence(seq)
-
-            pwm_scores = torch.tensor(get_ind_score(self.pwm, seq), dtype=torch.float32)
-            structure_features["pwm_scores"] = pwm_scores
-
-        if self.config.use_mgws:
-            # extract the mgw features from the bigwig file
-            mgw_values = self.bw_file.values(
-                interval[TFColumns.CHROM.value],
-                interval[TFColumns.START.value],
-                interval[TFColumns.END.value],
-            )
-            structure_features["mgw"] = torch.tensor(mgw_values, dtype=torch.float32)
+        torch_struct_dict = {}
+        for key,val in data['structure_features'].items():
+            if val is None:
+                continue
+            val = np.asarray(val)
+            if val.size==0:
+                continue
+            torch_struct_dict[key] = torch.tensor(val, dtype=torch.float32)
 
         return {
-            "interval": interval_dict,
-            "structure_features": structure_features,
-            "label": torch.tensor(self.is_tf_site, dtype=torch.float32),
+            "interval": data['interval'],
+            "structure_features": torch_struct_dict,
+            "label": torch.tensor(data["label"], dtype=torch.float32),
         }
 
 class SVMDataset:
@@ -105,87 +255,26 @@ class SVMDataset:
     """
 
     def __init__(self, pr, is_tf_site, config):
+        self.extractor = BaseIntervalExtractor(pr, is_tf_site, config)
         self.pr = pr
-        self.label = is_tf_site
-        self.config = config
-
-        # directory with all 4 GBshape files
-        shape_dir = config.pred_struct_data_dir
-
-        # Load shape tracks (mgw, prot, roll, helt)
-        self.shape_tracks = {}
-        for shape_name in ["mgw", "prot", "roll", "helt"]:
-            fname = getattr(config, f"{shape_name}_file_name", None)
-            if fname is None:
-                continue
-
-            path = os.path.join(shape_dir, fname)
-            if shape_name == 'prot':
-                path = '/home/mcb/users/cclark6/comp561/hg19.ProT.wig.bw'
-            if not os.path.exists(path):
-                raise FileNotFoundError(f"Struct file not found: {path}")
-
-            self.shape_tracks[shape_name] = pyBigWig.open(path)
-
-        self.window = config.window_size
-
+    
     def __len__(self):
         return len(self.pr)
 
     def __getitem__(self, idx):
         row = self.pr.iloc[idx]
-
-        chrom = row[TFColumns.CHROM.value]
-        start = int(row[TFColumns.START.value])
-        end   = int(row[TFColumns.END.value])
-        strand = row[TFColumns.STRAND.value]
-
-        seq = row[TFColumns.SEQ.value].upper()
-
-        if strand == "-":
-            seq = get_negative_strand_subsequence(seq)
-
-        seq_len = len(seq)
-
-        if self.window is not None and self.window < seq_len:
-            center = seq_len // 2
-            half = self.window // 2
-            seq = seq[center - half : center + half + 1]
-
-            win_start = start + (center - half)
-            win_end   = start + (center + half + 1)
-        else:
-            win_start = start
-            win_end   = end
-
-        seq_encoded = one_hot_encode(seq).flatten()
-
-        shape_features = []
-
-        for name, bw in self.shape_tracks.items():
-            vals = bw.values(chrom, win_start, win_end)
-            vals = np.nan_to_num(vals)
-
-            if len(vals) != len(seq):
-                # pad or truncate if shape doesnt match
-                if len(vals) < len(seq):
-                    pad_len = len(seq) - len(vals)
-                    vals = np.concatenate([vals, np.zeros(pad_len)])
-                else:
-                    vals = vals[:len(seq)]
-
-            shape_features.append(vals)
-
-        if len(shape_features) > 0:
-            shape_features = np.concatenate(shape_features)
-        else:
-            shape_features = np.array([], dtype=np.float32)
+        data = self.extractor.extract_features(row)
         
-        # final svm input
-        X = np.concatenate([seq_encoded, shape_features]).astype(np.float32)
-        y = self.label
+        X = np.concatenate(
+            data['interval'][TFColumns.SEQ_ENCODED.value],
+            data['structure_features'],
+        ).astype(np.float32)
+
+        y = data['label']
 
         # ---- DEBUGGING ----
+        seq = data['interval'][TFColumns.SEQ.value]
+        seq_encoded = data['interval'][TFColumns.SEQ_ENCODED.value]
         if idx < 1 and self.config.debug:
             print("----- DEBUG SAMPLE -----")
             print("Seq:", seq)
@@ -195,9 +284,8 @@ class SVMDataset:
             print("X shape:", X.shape)
             print("label:", y)
             print("-------------------------")
-
-        return X, y
-
+        return X,y
+        
 def get_data_splits(config: Config):
     """
     Factory function to get the dataset instance based on the config.
@@ -233,6 +321,7 @@ def get_data_splits(config: Config):
 
     # ----------- DEBUGGING -----------
     print(f"[DEBUG] Using dataset class: {DatasetClass.__name__}")
+    item = DatasetClass.__getitem__()
 
 
     pos_dataset = DatasetClass(pos_df, is_tf_site=1, config=config)

@@ -106,10 +106,10 @@ class Config:
             help="The file name of the Helical Twist (HelT) bigwig file",
         )
         parser.add_argument(
-            "--use_mgws",
+            "--use_wigs",
             action="store_true",
             default=None,
-            help="Whether to use Minor Groove Width (MGW) features in the model",
+            help="Whether to use bigWig files (MGW, OC2, HelT, ProT) in the model",
         )
 
         # ---- SVM hyperparameters ----
