@@ -119,6 +119,26 @@ class Config:
                 help=f"The file name of the {feature.value} predicted structure file",
             )
 
+        # ---- SVM Parameters ----
+        parser.add_argument(
+            "--svm_kernel",
+            type=str,
+            default="linear",
+            help="Type of kernel to use fore SVM classifier.",
+        )
+        parser.add_argument(
+            "--svm_c",
+            type=float,
+            default=1.0,
+            help="Regularization parameter C for SVM, higher values reduce regularization.",
+        )
+        parser.add_argument(
+            "--svm_gamma",
+            type=str,
+            default="scale",
+            help="Gamma value for RBF/poly/sigmoid SVM kernels, ignored for linear",
+        )
+
         # only parse the args that we know, and throw out what we don't know
         args = parser.parse_known_args()[0]
 
@@ -136,13 +156,11 @@ class Config:
             for key in config_keys:
                 if key in data.keys():
                     setattr(self, key, data[key])
-            print(self.preprocess_data_dir)
 
         # now we take all the arguments we want and we copy it over!
         for key, value in args._get_kwargs():
             if value is not None:
                 setattr(self, key, value)
-        print(self.preprocess_data_dir)
 
         # require that the architecture and data path must exist
         assert all(

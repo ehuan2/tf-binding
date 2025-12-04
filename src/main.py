@@ -4,7 +4,9 @@ main.py
 This is the main script to run a model given the specified yaml configuration file.
 """
 
-from models.config import Config, get_model_instance
+from models.config import (
+    Config, get_model_instance, ModelSelection
+)
 from dataloaders import get_data_splits
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -20,11 +22,19 @@ if __name__ == "__main__":
     print(f"Training dataset size: {len(train_dataset)}")
     print(f"Testing dataset size: {len(test_dataset)}")
 
-    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
+    if config.architecture == ModelSelection.SVM:
+        # SVM not batch-trained, input full train_dataset instead of DataLoader
+        print('Training SVM on full training dataset...')
+        model.train(train_dataset)
+    
+    else:
+        train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
-    for batch in tqdm(train_loader):
-        print("Training batch:", batch)
+        for batch in tqdm(train_loader):
+            print("Training batch:", batch)
+    
+    model.evaluate(test_dataset)
 
     # Then we train the model and evaluate
     # model.train(train_loader)
