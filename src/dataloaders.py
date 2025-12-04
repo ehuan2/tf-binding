@@ -7,12 +7,8 @@ Custom dataset classes for loading transcription factor binding site data.
 from helpers import (
     read_samples,
     TFColumns,
-    one_hot_encode,
 )
-from models.config import (
-    Config,
-    ModelSelection,
-)
+from models.config import Config
 from preprocess.preprocess import (
     get_negative_strand_subsequence,
     get_pwm,
@@ -23,17 +19,16 @@ import torch
 from torch.utils.data import Dataset, random_split, ConcatDataset
 import os
 import pyBigWig
-import numpy as np
 
-class BaseIntervalExtractor():
+
+class IntervalDataset(Dataset):
     """
-    Base dataset class for loading intervals of transcription factor binding sites.
+    Dataset class for loading intervals of transcription factor binding sites.
     Each interval is represented by its chromosomes, start, and end positions,
-        structural features (MGW, HelT, OC2, Prot, PWM), 
-        as well as its labels (positive or negative).
-    Everything stored as np.array in dicts
+    as well as its labels (positive or negative).
     """
-    def __init__(self, pr, is_tf_site, config):
+
+    def __init__(self, pr, is_tf_site, config: Config):
         """
         Args:
             pr (pr.PyRanges): Pyranges containing the intervals.
@@ -43,165 +38,70 @@ class BaseIntervalExtractor():
         self.is_tf_site = is_tf_site
         self.config = config
 
-        # loading in sequence-level stuff (just PWM right now)
-        if config.use_probs:
+        # let's open up all the bigwig files that are specified
+        if config.pred_struct_features:
+            assert (
+                config.pred_struct_data_dir is not None
+            ), "pred_struct_data_dir must be specified to use structural features"
+
+            self.bw_files = {}
+            for feature in config.pred_struct_features:
+                bigwig_path = os.path.join(
+                    config.pred_struct_data_dir,
+                    getattr(config, f"{feature.lower()}_file_name"),
+                )
+                assert os.path.exists(
+                    bigwig_path
+                ), f"BigWig file for {feature} not found: {bigwig_path}"
+
+                self.bw_files[feature] = pyBigWig.open(bigwig_path)
+
+        if self.config.use_probs:
             assert (
                 config.pwm_file is not None
             ), "pwm_file must be specified to use probability vector features"
+            # read in the PWM file
             self.pwm = get_pwm(config.pwm_file, config.tf)
-        
-        # loading in structural data (bigwig files)
-        self.struct_tracks = {}
-        if config.use_wigs:
-            assert (
-                config.pred_struct_data_dir is not None
-            ), "pred_struct_data_dir must be specified to use bigWig features"
-            struct_dir = config.pred_struct_data_dir
-            for shape_name in ['mgw', 'prot', 'oc2', 'helt']:
-                fname = getattr(config, f"{shape_name}_file_name", None)
-                if fname is None:
-                    continue
-                path = os.path.join(struct_dir, fname)
-                self.struct_tracks[shape_name] = pyBigWig.open(path)
-        
-        self.window = config.window_size
-    
-    def extract_features(self, row):
-        """
-        For given row (genomc interval), returns:
-            dict{
-                seq,
-                seq_one_hot_encoded,
-                structural_features,
-                pwm_scores,
-                log_prob,
-                label
-            }
-        """
-        chrom = row[TFColumns.CHROM.value]
-        start = int(row[TFColumns.START.value])
-        end = int(row[TFColumns.END.value])
-        strand = row[TFColumns.STRAND.value]
-        seq = row[TFColumns.SEQ.value].upper()
 
-        if strand == '-':
-            seq = get_negative_strand_subsequence(seq)
+    def __len__(self):
+        return len(self.pr)
 
-        seq_len = len(seq)
+    def __getitem__(self, idx):
+        interval = self.pr.iloc[idx]
 
-        # grabbing sequence windows
-        if self.window is not None and self.window < seq_len:
-            center = seq_len // 2
-            half = self.window // 2
-            seq = seq[center-half : center+half+1]
-            
-            win_start = start + (center - half)
-            win_end = start + (center + half + 1)
-        else:
-            win_start = start
-            win_end = end
-        
-        # one-hot encode sequence
-        # store as flattened numpy for now to easily convert
-        seq_encoded = one_hot_encode(seq).flatten().astype(np.float32)
-
-        # store in same dict
         interval_dict = {
-            TFColumns.SEQ.value: seq,
-            TFColumns.SEQ_ENCODED.value: seq_encoded,
-            TFColumns.LOG_PROB.value: row[TFColumns.LOG_PROB.value]
+            TFColumns.SEQ.value: interval[TFColumns.SEQ.value],
+            TFColumns.LOG_PROB.value: interval[TFColumns.LOG_PROB.value],
         }
 
-        # adding in structural features
-        struct_feats = {}
-        for name,bw in self.struct_tracks.items():
-            vals = bw.values(chrom, win_start, win_end)
-            vals = np.nan_to_num(vals)
+        structure_features = {}
 
-            # pad or truncate to match seq len, if needed
-            if len(vals) < len(seq):
-                pad_len = len(seq) - len(vals)
-                vals = np.concatenate([vals, np.zeros(pad_len)])
-            elif len(vals) > len(seq):
-                vals = vals[:len(seq)]
-            
-            struct_feats[name] = vals.astype(np.float32)
-        
-        # pwm scores
-        pwm_scores = None
         if self.config.use_probs:
-            pwm_scores = np.array(get_ind_score(self.pwm, seq), dtype=np.float32)
-        struct_feats['pwm_scores'] = pwm_scores
-        
-        return {
-            'interval': interval_dict,
-            'structure_features': struct_feats,
-            'label': np.array(self.is_tf_site, dtype=np.float32)
-        }
+            seq = interval[TFColumns.SEQ.value]
+            strand = interval[TFColumns.STRAND.value]
+            # now, depending on the strand, we may need to reverse complement
+            if strand == "-":
+                seq = get_negative_strand_subsequence(seq)
 
-class IntervalDataset(Dataset):
-    def __init__(self, pr, is_tf_site, config):
-        self.extractor = BaseIntervalExtractor(pr, is_tf_site, config)
-        self.pr = pr
+            pwm_scores = torch.tensor(get_ind_score(self.pwm, seq), dtype=torch.float32)
+            structure_features["pwm_scores"] = pwm_scores
 
-    def __len__(self):
-        return len(self.pr)
-
-    def __getitem__(self, idx):
-        row = self.pr.iloc[idx]
-        data = self.extractor.extract_features(row)
-
-        torch_struct_dict = {}
-        for key,val in data['structure_features'].items():
-            if val is None:
-                continue
-            val = np.asarray(val)
-            if val.size==0:
-                continue
-            torch_struct_dict[key] = torch.tensor(val, dtype=torch.float32)
+        # extract the predicted features from the bigwig file
+        for feature, bw_file in self.bw_files.items():
+            values = bw_file.values(
+                interval[TFColumns.CHROM.value],
+                interval[TFColumns.START.value],
+                interval[TFColumns.END.value],
+            )
+            structure_features[feature] = torch.tensor(values, dtype=torch.float32)
 
         return {
-            "interval": data['interval'],
-            "structure_features": torch_struct_dict,
-            "label": torch.tensor(data["label"], dtype=torch.float32),
+            "interval": interval_dict,
+            "structure_features": structure_features,
+            "label": torch.tensor(self.is_tf_site, dtype=torch.float32),
         }
 
-class SVMDataset:
-    """
-    Dataset that prepares sequence + GBshape features for SVM classification.
-    """
 
-    def __init__(self, pr, is_tf_site, config):
-        self.extractor = BaseIntervalExtractor(pr, is_tf_site, config)
-        self.pr = pr
-    
-    def __len__(self):
-        return len(self.pr)
-
-    def __getitem__(self, idx):
-        row = self.pr.iloc[idx]
-        data = self.extractor.extract_features(row)
-
-        # convert structure features dict to list to we can concatenate into single input vector
-        struct_dict = data['structure_features']
-        struct_list = [
-            np.asarray(v)
-            for v in struct_dict.values() 
-            if v is not None and np.asarray(v).size > 0
-        ]
-        if len(struct_list) > 0:
-            struct_feats = np.concatenate(struct_list)
-        else:
-            struct_feats = np.array([])
-        
-        X = np.concatenate([
-            data['interval'][TFColumns.SEQ_ENCODED.value],
-            struct_feats,
-        ]).astype(np.float32)
-
-        y = data['label']
-        return X,y
-        
 def get_data_splits(config: Config):
     """
     Factory function to get the dataset instance based on the config.
@@ -226,30 +126,16 @@ def get_data_splits(config: Config):
     neg_df = read_samples(neg_file, names=columns)
 
     # now let's create the positive and negative training/testing splits
-    if config.architecture == ModelSelection.SIMPLE:
-        DatasetClass = IntervalDataset
-    elif config.architecture == ModelSelection.SVM:
-        DatasetClass = SVMDataset
-    else:
-        DatasetClass = None
-
-    assert DatasetClass is not None, f'Dataset Class {DatasetClass} not implemented.'
-
-    # ----------- DEBUGGING -----------
-    print(f"[DEBUG] Using dataset class: {DatasetClass.__name__}")
-
-    pos_dataset = DatasetClass(pos_df, is_tf_site=1, config=config)
-    neg_dataset = DatasetClass(neg_df, is_tf_site=0, config=config)
+    pos_dataset = IntervalDataset(pos_df, is_tf_site=1, config=config)
+    neg_dataset = IntervalDataset(neg_df, is_tf_site=0, config=config)
 
     train_size_pos = int(config.train_split * len(pos_dataset))
     test_size_pos = len(pos_dataset) - train_size_pos
     train_size_neg = int(config.train_split * len(neg_dataset))
     test_size_neg = len(neg_dataset) - train_size_neg
 
-    pos_train, pos_test = random_split(pos_dataset, [train_size_pos, test_size_pos],
-                                       generator=torch.Generator().manual_seed(config.seed))
-    neg_train, neg_test = random_split(neg_dataset, [train_size_neg, test_size_neg],
-                                       generator=torch.Generator().manual_seed(config.seed))
+    pos_train, pos_test = random_split(pos_dataset, [train_size_pos, test_size_pos])
+    neg_train, neg_test = random_split(neg_dataset, [train_size_neg, test_size_neg])
 
     train_dataset = ConcatDataset([pos_train, neg_train])
     test_dataset = ConcatDataset([pos_test, neg_test])
