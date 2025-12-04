@@ -129,6 +129,7 @@ class Config:
         # first read the config file and set the current attributes to it
         # then parse through the other arguments as that's what we want use to
         # override the config file if supplied
+        print(self.preprocess_data_dir)
         if args.config:
             with open(args.config, "r") as file:
                 data = yaml.safe_load(file)
@@ -136,11 +137,13 @@ class Config:
             for key in config_keys:
                 if key in data.keys():
                     setattr(self, key, data[key])
+            print(self.preprocess_data_dir)
 
         # now we take all the arguments we want and we copy it over!
         for key, value in args._get_kwargs():
             if value is not None:
                 setattr(self, key, value)
+        print(self.preprocess_data_dir)
 
         # require that the architecture and data path must exist
         assert all(
