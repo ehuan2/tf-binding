@@ -36,7 +36,7 @@ class SVMModel(BaseModel):
         """
         # one-hot encode sequence
         seq = item['interval'][TFColumns.SEQ.value]
-        seq_vec = one_hot_encode(seq).astype(np.float32)
+        seq_vec = one_hot_encode(seq).astype(np.float32).reshape(-1)
 
         struct_feats = []
         # convert tensors to numpy for svm
