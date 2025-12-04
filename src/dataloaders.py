@@ -56,6 +56,7 @@ class BaseIntervalExtractor():
             self.pwm = get_pwm(config.pwm_file, config.tf)
         
         # loading in structural data (bigwig files)
+        self.struct_tracks = {}
         if config.use_wigs:
             assert (
                 config.pred_struct_data_dir is not None
