@@ -1,5 +1,5 @@
 from models.base import BaseModel
-from src.helpers import (
+from helpers import (
     TFColumns,
     one_hot_encode
 )
