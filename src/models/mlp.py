@@ -52,6 +52,7 @@ class MLPModel(BaseModel):
         self.model = self.MLPModule(tf_len, config).to(
             device=self.config.device, dtype=self.config.dtype
         )
+        self.model_name = "encoders"
 
     def _train(self, data):
         train_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=True)
@@ -79,9 +80,15 @@ class MLPModel(BaseModel):
                     {"train_loss": loss.item(), "acc": accuracy}, step=step
                 )
 
-        mlflow.pytorch.log_model(self.model, name="encoders")
+        mlflow.pytorch.log_model(self.model, name=self.model_name)
 
-    def predict(self, data):
+    def _predict(self, data):
         test_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=False)
         print("Predicting with MLPModel on data:", data)
         return ["prediction"] * len(data)
+
+    def _load_model(self, run_id):
+        self.model = mlflow.pytorch.load_model(
+            model_uri=f"runs:/{run_id}/{self.model_name}",
+            map_location=self.config.device,
+        )
