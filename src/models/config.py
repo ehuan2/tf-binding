@@ -152,8 +152,20 @@ class Config:
             "batch_size": 32,
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
-            "mgw_file_name": "hg19.MGW.wig.bw",
+            "pred_struct_features": [],
+            "seed": 42,
+            "context_bp": 5,
+
+            # SVM Defaults
+            "svm_kernel": "linear",
+            "svm_c": 1.0,
+            "svm_gamma": "scale"
         }
+
+        for feature in PredStructFeature:
+            defaults[
+                f"{feature.value.lower()}_file_name"
+            ] = f"hg19.{feature.value}.wig.bw"
 
         for key, value in defaults.items():
             if not hasattr(self, key) or getattr(self, key) is None:
