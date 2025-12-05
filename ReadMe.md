@@ -32,7 +32,7 @@ This will preprocess the data and spit out to what is specified by `--output_dir
 
 Then, to prepare for a specific TF with other structural features, use:
 ```
-python src/preprocess/preprocess.py --tf <str> --bigwig_dir <str> --bigwigs <filename for MGW> <filename for HelT> ...
+python src/preprocess/preprocess.py --tf <str> --mgw_path <str>
 ```
 
 ## Training
@@ -55,8 +55,8 @@ GFI1	8	1.000000,1.000000,0.000000,0.000000,0.626866,0.000000,0.671642,0.000000,	
 ```
 where the tabs delimit the nucleotide probabilities.
 7. `pred_struct_data_dir`, the directory containing the BigWig files. **Note these files must all be in the same directory**.
-8. `pred_struct_features`, a list input for the types of structural features to include.
-9. `<feat>_file_name` the file name for the specified structural feature. Defaults to `<pred_struct_data_dir>/hg19.<pred_struct>.wig.bw`.
+8. `mgw_file_name`, the filename in the directory in (7) that defines the major groove width file.
+9. `use_mgws`, whether the filename in (8) is used or not in the model prediction.
 10. `use_probs`, whether or not we will use the probability scores from the position weight matrix per nucleotide.
 
 

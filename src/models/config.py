@@ -15,16 +15,7 @@ class ModelSelection(str, Enum):
     """Enum that contains all possible model choices."""
 
     SIMPLE = "simple"
-    SVM = "svm"
 
-class PredStructFeature(str, Enum):
-    """Enum that contains all possible predicted structure features."""
-
-    MGW = "MGW"
-    HelT = "HelT"
-    ProT = "ProT"
-    Roll = "Roll"
-    OC2 = "OC2"
 
 class Config:
     """Config class for both yaml and cli arguments."""
@@ -74,71 +65,31 @@ class Config:
             help="The batch size to use for training",
         )
         parser.add_argument(
-            "--seed",
-            type=int,
-            default=42,
-            help="Random seed to use",
-        )
-        parser.add_argument(
-            "--context_bp",
-            type=int,
-            help="Extra context (in bp) added on each side of the TF motif window."
-        )
-
-        # ---- PWM features ----
-        parser.add_argument(
             "--pwm_file",
             type=str,
             help="The file name of the probability weight matrix (PWM) file",
+        )
+        parser.add_argument(
+            "--pred_struct_data_dir",
+            type=str,
+            help="The directory containing DNA predicted structure data",
+        )
+        parser.add_argument(
+            "--mgw_file_name",
+            type=str,
+            help="The file name of the Minor Groove Width (MGW) bigwig file",
+        )
+        parser.add_argument(
+            "--use_mgws",
+            action="store_true",
+            default=None,
+            help="Whether to use Minor Groove Width (MGW) features in the model",
         )
         parser.add_argument(
             "--use_probs",
             action="store_true",
             default=None,
             help="Whether to use the probability vector of the sequence in the model",
-        )
-
-        # ---- Predicted Structure files ----
-        parser.add_argument(
-            "--pred_struct_data_dir",
-            type=str,
-            help="The directory containing DNA predicted structure data",
-        )
-
-        parser.add_argument(
-            "--pred_struct_features",
-            nargs="+",
-            type=PredStructFeature,
-            choices=list(PredStructFeature),
-            metavar=f"{[feature.value for feature in list(PredStructFeature)]}",
-            default=None,
-            help="List of predicted structure features to use (e.g., MGW, HelT, ProT, Roll, OC2)",
-        )
-
-        # then we finally add on arguments for each structure feature
-        # so others can specify paths if they want
-        for feature in PredStructFeature:
-            parser.add_argument(
-                f"--{feature.value.lower()}_file_name",
-                type=str,
-                help=f"The file name of the {feature.value} predicted structure file",
-            )
-
-        # ---- SVM Parameters ----
-        parser.add_argument(
-            "--svm_kernel",
-            type=str,
-            help="Type of kernel to use fore SVM classifier.",
-        )
-        parser.add_argument(
-            "--svm_c",
-            type=float,
-            help="Regularization parameter C for SVM, higher values reduce regularization.",
-        )
-        parser.add_argument(
-            "--svm_gamma",
-            type=str,
-            help="Gamma value for RBF/poly/sigmoid SVM kernels, ignored for linear",
         )
 
         # only parse the args that we know, and throw out what we don't know
@@ -192,7 +143,7 @@ class Config:
         assert self.tf is not None, "Transcription factor (--tf) must be specified"
 
         # now let's rewrite the config's keys that are not defined (boolean):
-        for key in ["use_probs"]:
+        for key in ["use_mgws", "use_probs"]:
             if not hasattr(self, key) or getattr(self, key) is None:
                 setattr(self, key, False)
 
@@ -201,32 +152,12 @@ class Config:
             "batch_size": 32,
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
-            "pred_struct_features": [],
-            "seed": 42,
-            "window_size": 5,
-
-            # SVM Defaults
-            "svm_kernel": "linear",
-            "svm_c": 1.0,
-            "svm_gamma": "scale"
+            "mgw_file_name": "hg19.MGW.wig.bw",
         }
-
-        for feature in PredStructFeature:
-            defaults[
-                f"{feature.value.lower()}_file_name"
-            ] = f"hg19.{feature.value}.wig.bw"
 
         for key, value in defaults.items():
             if not hasattr(self, key) or getattr(self, key) is None:
                 setattr(self, key, value)
-
-        # now let's check that the predicted structure features to be used
-        # are valid
-        for feature in self.pred_struct_features:
-            assert feature in list(PredStructFeature), (
-                f"Predicted structure feature {feature} not supported, "
-                f"use one of {[f.value for f in list(PredStructFeature)]}"
-            )
 
 
 def get_model_instance(config: Config) -> BaseModel:
@@ -237,10 +168,5 @@ def get_model_instance(config: Config) -> BaseModel:
         from models.simple import SimpleModel
 
         return SimpleModel(config)
-    
-    elif config.architecture == ModelSelection.SVM:
-        from models.svm import SVMModel
-        return SVMModel(config)
-    
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
