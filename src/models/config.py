@@ -15,6 +15,16 @@ class ModelSelection(str, Enum):
     """Enum that contains all possible model choices."""
 
     SIMPLE = "simple"
+    SVM = "svm"
+
+class PredStructFeature(str, Enum):
+    """Enum that contains all possible predicted structure features."""
+
+    MGW = "MGW"
+    HelT = "HelT"
+    ProT = "ProT"
+    Roll = "Roll"
+    OC2 = "OC2"
 
 
 class Config:
@@ -75,15 +85,13 @@ class Config:
             help="The directory containing DNA predicted structure data",
         )
         parser.add_argument(
-            "--mgw_file_name",
-            type=str,
-            help="The file name of the Minor Groove Width (MGW) bigwig file",
-        )
-        parser.add_argument(
-            "--use_mgws",
-            action="store_true",
+            "--pred_struct_features",
+            nargs="+",
+            type=PredStructFeature,
+            choices=list(PredStructFeature),
+            metavar=f"{[feature.value for feature in list(PredStructFeature)]}",
             default=None,
-            help="Whether to use Minor Groove Width (MGW) features in the model",
+            help="List of predicted structure features to use (e.g., MGW, HelT, ProT, Roll, OC2)",
         )
         parser.add_argument(
             "--use_probs",
@@ -91,6 +99,15 @@ class Config:
             default=None,
             help="Whether to use the probability vector of the sequence in the model",
         )
+
+        # then we finally add on arguments for each structure feature
+        # so others can specify paths if they want
+        for feature in PredStructFeature:
+            parser.add_argument(
+                f"--{feature.value.lower()}_file_name",
+                type=str,
+                help=f"The file name of the {feature.value} predicted structure file",
+            )
 
         # only parse the args that we know, and throw out what we don't know
         args = parser.parse_known_args()[0]
@@ -143,7 +160,7 @@ class Config:
         assert self.tf is not None, "Transcription factor (--tf) must be specified"
 
         # now let's rewrite the config's keys that are not defined (boolean):
-        for key in ["use_mgws", "use_probs"]:
+        for key in ["use_probs"]:
             if not hasattr(self, key) or getattr(self, key) is None:
                 setattr(self, key, False)
 
@@ -171,6 +188,14 @@ class Config:
             if not hasattr(self, key) or getattr(self, key) is None:
                 setattr(self, key, value)
 
+        # now let's check that the predicted structure features to be used
+        # are valid
+        for feature in self.pred_struct_features:
+            assert feature in list(PredStructFeature), (
+                f"Predicted structure feature {feature} not supported, "
+                f"use one of {[f.value for f in list(PredStructFeature)]}"
+            )
+
 
 def get_model_instance(config: Config) -> BaseModel:
     """
@@ -180,5 +205,9 @@ def get_model_instance(config: Config) -> BaseModel:
         from models.simple import SimpleModel
 
         return SimpleModel(config)
+    elif config.architecture == "svm":
+        from models.svm import SVMModel
+
+        return SVMModel(config)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")

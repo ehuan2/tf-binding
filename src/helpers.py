@@ -12,6 +12,7 @@ from Bio import SeqIO
 from enum import Enum
 import pyranges as pr
 import pandas as pd
+import numpy as np
 
 
 def get_subsequence(fasta_file, start, end):
@@ -45,6 +46,7 @@ class TFColumns(Enum):
     STRAND = "Strand"
     CHROM_INDEX = "Chrom_Index"  # for the chip-seq data, chrx.y, meaningless
     SEQ = "Sequence"
+    SEQ_ENCODED = "Sequence_Encoded"
     LOG_PROB = "Log_Prob"
     MGW = "MGW"
 
@@ -114,3 +116,36 @@ def read_samples(file_path, names):
     pr.PyRanges: PyRanges object containing the samples.
     """
     return pr.PyRanges(pd.read_table(file_path, names=names))
+
+def one_hot_encode(seq):
+    """
+    One-hot encode DNA sequence into (len(seq), 4) np.array. Convert torch.tensor after call if needed.
+    'N' or other unknown bases will have 0's across given column.
+    Maps according to:
+        'A': [1, 0, 0, 0],
+        'C': [0, 1, 0, 0],
+        'G': [0, 0, 1, 0],
+        'T': [0, 0, 0, 1]
+
+    Parameters:
+    seq (str): DNA sequence to be encoded.
+
+    Returns:
+    np.array: Numpy array of one-hot encoded sequence
+    """
+
+    seq = seq.upper()
+    mapping = {
+        'A': [1, 0, 0, 0],
+        'C': [0, 1, 0, 0],
+        'G': [0, 0, 1, 0],
+        'T': [0, 0, 0, 1]
+    }
+
+    encoded = np.zeros((len(seq), 4), dtype=np.float32)
+
+    for i, base in enumerate(seq):
+        if base in mapping:
+            encoded[i] = mapping[base]
+    
+    return encoded
