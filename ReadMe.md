@@ -42,6 +42,14 @@ python src/main.py -c configs/<config.yaml>
 ```
 Or add any of the flags found under `src/models/config.py` to override any values in the yaml file.
 
+### MLFlow
+For training, we also use mlflow, a framework used for organizing different ML training runs. To access the dashboard, simply run:
+```
+mlflow server --port 5000
+```
+and access the dashboard through the URL shown in the terminal.
+
+
 ### Configs
 Take the `configs/simple.yaml` as an example, where you can set the following:
 1. `architecture`, must be set. See `src/models/config.py` for a list of all models.

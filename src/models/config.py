@@ -14,7 +14,7 @@ import yaml
 class ModelSelection(str, Enum):
     """Enum that contains all possible model choices."""
 
-    SIMPLE = "simple"
+    MLP = "mlp"
 
 
 class PredStructFeature(str, Enum):
@@ -190,13 +190,13 @@ class Config:
             )
 
 
-def get_model_instance(config: Config) -> BaseModel:
+def get_model_instance(config: Config, tf_len: int) -> BaseModel:
     """
     Factory function to get the model instance based on the architecture specified in the config.
     """
-    if config.architecture == "simple":
-        from models.simple import SimpleModel
+    if config.architecture == "mlp":
+        from models.mlp import MLPModel
 
-        return SimpleModel(config)
+        return MLPModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
