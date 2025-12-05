@@ -76,6 +76,7 @@ class IntervalDataset(Dataset):
 
         structure_features = {}
 
+        # get PWM scores, not accounting for extra context
         if self.config.use_probs:
             seq = interval[TFColumns.SEQ.value]
             strand = interval[TFColumns.STRAND.value]
@@ -86,13 +87,15 @@ class IntervalDataset(Dataset):
             pwm_scores = torch.tensor(get_ind_score(self.pwm, seq), dtype=torch.float32)
             structure_features["pwm_scores"] = pwm_scores
 
-        # extract the predicted features from the bigwig file
+        # adding in expanded context window
+        pad = self.config.context_bp
+        start_bw = max(0, interval[TFColumns.START.value] - pad)
+        end_bw = interval[TFColumns.END.value] + pad
+        chrom = interval[TFColumns.CHROM.value]
+
+        # extract the predicted features from the bigwig file, account for extra context
         for feature, bw_file in self.bw_files.items():
-            values = bw_file.values(
-                interval[TFColumns.CHROM.value],
-                interval[TFColumns.START.value],
-                interval[TFColumns.END.value],
-            )
+            values = bw_file.values(chrom, start_bw, end_bw)
             structure_features[feature] = torch.tensor(values, dtype=torch.float32)
 
         return {

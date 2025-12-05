@@ -79,6 +79,11 @@ class Config:
             default=42,
             help="Random seed to use",
         )
+        parser.add_argument(
+            "--context_bp",
+            type=int,
+            help="Extra context (in bp) added on each side of the TF motif window."
+        )
 
         # ---- PWM features ----
         parser.add_argument(
@@ -123,19 +128,16 @@ class Config:
         parser.add_argument(
             "--svm_kernel",
             type=str,
-            default="linear",
             help="Type of kernel to use fore SVM classifier.",
         )
         parser.add_argument(
             "--svm_c",
             type=float,
-            default=1.0,
             help="Regularization parameter C for SVM, higher values reduce regularization.",
         )
         parser.add_argument(
             "--svm_gamma",
             type=str,
-            default="scale",
             help="Gamma value for RBF/poly/sigmoid SVM kernels, ignored for linear",
         )
 
@@ -201,10 +203,10 @@ class Config:
             "pwm_file": "data/factorbookMotifPwm.txt",
             "pred_struct_features": [],
             "seed": 42,
+            "window_size": 5,
 
             # SVM Defaults
-            "window_size": 101,
-            "svm_kernal": "linear",
+            "svm_kernel": "linear",
             "svm_c": 1.0,
             "svm_gamma": "scale"
         }
