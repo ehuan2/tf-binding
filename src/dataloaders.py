@@ -39,15 +39,22 @@ class IntervalDataset(Dataset):
         self.config = config
 
         # let's open up all the bigwig files that are specified
-        if config.use_mgws:
+        if config.pred_struct_features:
             assert (
                 config.pred_struct_data_dir is not None
-            ), "pred_struct_data_dir must be specified to use mgw features"
-            mgw_bigwig_path = os.path.join(
-                config.pred_struct_data_dir,
-                config.mgw_file_name,
-            )
-            self.bw_file = pyBigWig.open(mgw_bigwig_path)
+            ), "pred_struct_data_dir must be specified to use structural features"
+
+            self.bw_files = {}
+            for feature in config.pred_struct_features:
+                bigwig_path = os.path.join(
+                    config.pred_struct_data_dir,
+                    getattr(config, f"{feature.lower()}_file_name"),
+                )
+                assert os.path.exists(
+                    bigwig_path
+                ), f"BigWig file for {feature} not found: {bigwig_path}"
+
+                self.bw_files[feature] = pyBigWig.open(bigwig_path)
 
         if self.config.use_probs:
             assert (
@@ -69,6 +76,7 @@ class IntervalDataset(Dataset):
 
         structure_features = {}
 
+        # get PWM scores, not accounting for extra context
         if self.config.use_probs:
             seq = interval[TFColumns.SEQ.value]
             strand = interval[TFColumns.STRAND.value]
@@ -79,14 +87,16 @@ class IntervalDataset(Dataset):
             pwm_scores = torch.tensor(get_ind_score(self.pwm, seq), dtype=torch.float32)
             structure_features["pwm_scores"] = pwm_scores
 
-        if self.config.use_mgws:
-            # extract the mgw features from the bigwig file
-            mgw_values = self.bw_file.values(
-                interval[TFColumns.CHROM.value],
-                interval[TFColumns.START.value],
-                interval[TFColumns.END.value],
-            )
-            structure_features["mgw"] = torch.tensor(mgw_values, dtype=torch.float32)
+        # adding in expanded context window
+        pad = self.config.context_bp
+        start_bw = max(0, interval[TFColumns.START.value] - pad)
+        end_bw = interval[TFColumns.END.value] + pad
+        chrom = interval[TFColumns.CHROM.value]
+
+        # extract the predicted features from the bigwig file, account for extra context
+        for feature, bw_file in self.bw_files.items():
+            values = bw_file.values(chrom, start_bw, end_bw)
+            structure_features[feature] = torch.tensor(values, dtype=torch.float32)
 
         return {
             "interval": interval_dict,
