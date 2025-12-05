@@ -22,6 +22,7 @@ from helpers import (
 )
 from Bio import SeqIO
 import numpy as np
+import pyBigWig
 
 
 def generate_positive_examples(true_tf_file, output_dir, specific_tf):
@@ -348,13 +349,31 @@ def preprocess_neg_seq(output_dir, tf_name, pwm_file, reverse=False):
             )
 
 
-def filter_scores(args, overall_min, overall_max):
+def filter_scores(args):
     pos_seqs_file = os.path.join(args.output_dir, args.tf, "positive", "sequences.txt")
     neg_intervals_file = os.path.join(
         args.output_dir, args.tf, "negative", "best_negative_sequences.txt"
     )
     rev_neg_intervals_file = os.path.join(
         args.output_dir, args.tf, "negative", "reverse_best_negative_sequences.txt"
+    )
+
+    # now we filter based on the scores and write out new files
+    filtered_pos_file = os.path.join(
+        args.output_dir, args.tf, "positive", "overlap.txt"
+    )
+    filtered_neg_file = os.path.join(
+        args.output_dir, args.tf, "negative", "overlap.txt"
+    )
+
+    if os.path.exists(filtered_pos_file) and os.path.exists(filtered_neg_file):
+        return
+
+    # now that we score the positive, and forward, reverse sequences for negatives,
+    # we should preprocess based on the overlapping score distributions
+    positive_scores, negative_scores, rev_negative_scores = read_scores(args)
+    overall_min, overall_max = get_overlap_range(
+        positive_scores, negative_scores, rev_negative_scores
     )
 
     pos_names = [
@@ -376,14 +395,6 @@ def filter_scores(args, overall_min, overall_max):
     ]
     neg_pr = read_samples(neg_intervals_file, names=neg_names)
     rev_neg_pr = read_samples(rev_neg_intervals_file, names=neg_names)
-
-    # now we filter based on the scores and write out new files
-    filtered_pos_file = os.path.join(
-        args.output_dir, args.tf, "positive", "overlap.txt"
-    )
-    filtered_neg_file = os.path.join(
-        args.output_dir, args.tf, "negative", "overlap.txt"
-    )
 
     positive_subset = positive_pr[
         (positive_pr[TFColumns.LOG_PROB.value] >= overall_min)
@@ -423,6 +434,75 @@ def filter_scores(args, overall_min, overall_max):
         write_out_file(rev_neg_subset, "-")
 
 
+def preprocess_bigwigs(args):
+    assert args.bigwig_dir is not None, "bigwig_dir must be specified to preprocess"
+
+    # first, let's read the intervals that we have
+    pos_file = os.path.join(args.output_dir, args.tf, "positive", "overlap.txt")
+    neg_file = os.path.join(args.output_dir, args.tf, "negative", "overlap.txt")
+    names = [
+        TFColumns.CHROM.value,
+        TFColumns.START.value,
+        TFColumns.END.value,
+        TFColumns.STRAND.value,
+        TFColumns.SEQ.value,
+        TFColumns.LOG_PROB.value,
+    ]
+    pos_df = read_samples(pos_file, names=names)
+    neg_df = read_samples(neg_file, names=names)
+
+    # then we need to preprocess the pos_df, neg_df to get:
+    # 1. the chromosomes and their total lengths that we care about
+    # 2. the intervals that we care about for each bigwig file
+    # We can do this by merging the two dataframes
+    intervals = pos_df.set_union_overlaps(neg_df, strand_behavior="ignore")
+    chromosomes = intervals.chromosomes
+
+    output_bigwig_dir = os.path.join(args.bigwig_dir, args.tf, "bigwig_processed")
+    os.makedirs(output_bigwig_dir, exist_ok=True)
+
+    for bigwig_file in args.bigwigs:
+        mgw_bigwig_path = os.path.join(
+            args.bigwig_dir,
+            bigwig_file,
+        )
+
+        output_bigwig_file = os.path.join(
+            output_bigwig_dir,
+            bigwig_file,
+        )
+
+        if os.path.exists(output_bigwig_file):
+            continue
+
+        # then let's read the bigwig file and open the new preprocessed file
+        bw_input = pyBigWig.open(mgw_bigwig_path)
+        bw_output = pyBigWig.open(output_bigwig_file, "w")
+
+        # first, we need to define the header for the new bigwig file
+        bw_output.addHeader(
+            [(chrom, bw_input.chroms()[chrom]) for chrom in chromosomes]
+        )
+
+        # now let's iterate through the intervals and extract the values
+        for chrom in tqdm(chromosomes):
+            chrom_intervals = intervals[intervals[TFColumns.CHROM.value] == chrom]
+            for _, site in chrom_intervals.iterrows():
+                start = site[TFColumns.START.value]
+                end = site[TFColumns.END.value]
+                values = bw_input.values(chrom, start, end)
+                # we have to add everything one by one
+                bw_output.addEntries(
+                    [chrom] * (end - start),
+                    [start + idx for idx in range(end - start)],
+                    [start + idx + 1 for idx in range(end - start)],
+                    values=values,
+                )
+                assert len(values) == end - start
+
+        print(f"Finished preprocessing bigwig file: {bigwig_file}")
+
+
 if __name__ == "__main__":
     args = get_args()
     pos_tf_sites = generate_positive_examples(
@@ -439,13 +519,10 @@ if __name__ == "__main__":
         preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file)
         preprocess_neg_seq(args.output_dir, args.tf, args.pwm_file, reverse=True)
 
-        # now that we score the positive, and forward, reverse sequences for negatives,
-        # we should preprocess based on the overlapping score distributions
-        positive_scores, negative_scores, rev_negative_scores = read_scores(args)
-        overall_min, overall_max = get_overlap_range(
-            positive_scores, negative_scores, rev_negative_scores
-        )
-
         # now we will read the files again, and only keep those
         # that are in the overlapping range
-        filter_scores(args, overall_min, overall_max)
+        filter_scores(args)
+
+        # now let's preprocess the big wig files to only include the
+        # regions defined in the negative, reverse negative, and positive files
+        preprocess_bigwigs(args)

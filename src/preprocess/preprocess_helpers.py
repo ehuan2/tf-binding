@@ -55,6 +55,16 @@ def get_args():
         default="data/factorbookMotifPwm.txt",
         help="The probability weight matrix file to read from for negative sequence processing.",
     )
+    parser.add_argument(
+        "--bigwig_dir",
+        type=str,
+        help="Directory containing bigwig files for genomic features.",
+    )
+    parser.add_argument(
+        "--bigwigs",
+        nargs="+",
+        help="List of bigwig filenames to use for genomic features.",
+    )
     return parser.parse_args()
 
 
