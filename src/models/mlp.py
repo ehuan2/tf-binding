@@ -15,34 +15,43 @@ class MLPModel(BaseModel):
     binding site or not.
     """
 
+    class MLPModule(nn.Module):
+        def __init__(self, tf_len, config):
+            super().__init__()
+            # block of encoders first!
+            self.encoders = nn.ModuleList(
+                [
+                    nn.Sequential(nn.Linear(tf_len, config.mlp_hidden_size), nn.ReLU())
+                    for _ in range(
+                        len(config.pred_struct_features or []) + config.use_probs
+                    )
+                ]
+            )
+
+            # then we have the final classifier
+            self.final_mlp = nn.Sequential(
+                nn.Linear(len(self.encoders) * config.mlp_hidden_size + 1, 1),
+                nn.Sigmoid(),  # last layer for binary classification
+            )
+
+        def forward(self, scores, structure_feats):
+            embeds = []
+            for idx, value in enumerate(structure_feats):
+                encoder = self.encoders[idx]
+                embeds.append(encoder(value))
+
+            # concatenate over the features not the batch dimension
+            combined_feat = torch.cat(embeds, dim=1)
+            combined_feat = torch.cat([combined_feat, scores.unsqueeze(1)], dim=1)
+
+            return self.final_mlp(combined_feat).squeeze()
+
     def __init__(self, config, tf_len: int):
         super().__init__(config)
         self.tf_len = tf_len
-
-        # TODO: set the following hyperparameters via config
-        self.config.hidden_size = 16
-        self.config.device = torch.device("cpu")
-        self.config.dtype = torch.float64
-        self.config.num_epochs = 1
-
-        # block of encoders first!
-        self.encoders = [
-            self._cast_obj(
-                nn.Sequential(nn.Linear(tf_len, self.config.hidden_size), nn.ReLU())
-            )
-            for _ in range(len(config.pred_struct_features or []) + config.use_probs)
-        ]
-
-        # then we have the final classifier
-        self.model = self._cast_obj(
-            nn.Sequential(
-                nn.Linear(len(self.encoders) * self.config.hidden_size + 1, 1),
-                nn.Sigmoid(),  # last layer for binary classification
-            )
+        self.model = self.MLPModule(tf_len, config).to(
+            device=self.config.device, dtype=self.config.dtype
         )
-
-    def _cast_obj(self, obj):
-        return obj.to(device=self.config.device, dtype=self.config.dtype)
 
     def _train(self, data):
         train_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=True)
@@ -54,27 +63,12 @@ class MLPModel(BaseModel):
         for _ in range(self.config.num_epochs):
             for batch in tqdm(train_loader):
                 optimizer.zero_grad()
-                scores, structure_feat, labels = (
-                    batch["interval"]["Log_Prob"],
-                    batch["structure_features"],
-                    batch["label"],
-                )
 
-                embeds = []
-                for idx, value in enumerate(structure_feat.values()):
-                    value = self._cast_obj(value)
-                    encoder = self.encoders[idx]
-                    embeds.append(encoder(value))
+                scores = batch["interval"]["Log_Prob"]
+                structure_feats = batch["structure_features"].values()
+                labels = batch["label"]
 
-                # concatenate over the features not the batch dimension
-                combined_feat = torch.cat(embeds, dim=1)
-                combined_feat = torch.cat([combined_feat, scores.unsqueeze(1)], dim=1)
-                combined_feat = self._cast_obj(combined_feat)
-
-                outputs = self.model(combined_feat).squeeze()
-
-                labels = self._cast_obj(labels)
-
+                outputs = self.model(scores, structure_feats)
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
@@ -85,7 +79,7 @@ class MLPModel(BaseModel):
                     {"train_loss": loss.item(), "acc": accuracy}, step=step
                 )
 
-        mlflow.pytorch.log_model(self.model, "mlp_model")
+        mlflow.pytorch.log_model(self.model, name="encoders")
 
     def predict(self, data):
         test_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=False)

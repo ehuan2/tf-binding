@@ -7,8 +7,6 @@ This is the main script to run a model given the specified yaml configuration fi
 from models.config import Config, get_model_instance
 from dataloaders import get_data_splits
 
-import torch
-
 if __name__ == "__main__":
     config = Config()
 
@@ -19,8 +17,6 @@ if __name__ == "__main__":
 
     # Depending on the architecture, we would instantiate different models
     model = get_model_instance(config, tf_len)
-
-    torch.manual_seed(42)
 
     # Then we train the model and evaluate
     model.train(train_dataset)

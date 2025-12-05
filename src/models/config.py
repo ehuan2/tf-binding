@@ -9,6 +9,7 @@ from enum import Enum
 
 from models.base import BaseModel
 import yaml
+import torch
 
 
 class ModelSelection(str, Enum):
@@ -109,6 +110,27 @@ class Config:
                 help=f"The file name of the {feature.value} predicted structure file",
             )
 
+        parser.add_argument(
+            "--mlp_hidden_size",
+            type=int,
+            help="The mlp hidden size of the MLP model",
+        )
+        parser.add_argument(
+            "--num_epochs",
+            type=int,
+            help="The number of epochs to train the MLP model",
+        )
+        parser.add_argument(
+            "--device",
+            type=str,
+            help="The device to use for training the MLP model",
+        )
+        parser.add_argument(
+            "--dtype",
+            type=str,
+            help="The data type to use for training the MLP model",
+        )
+
         # only parse the args that we know, and throw out what we don't know
         args = parser.parse_known_args()[0]
 
@@ -170,6 +192,10 @@ class Config:
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
             "pred_struct_features": [],
+            "mlp_hidden_size": 16,
+            "num_epochs": 1,
+            "device": "cpu",
+            "dtype": "float64",
         }
 
         for feature in PredStructFeature:
@@ -188,6 +214,10 @@ class Config:
                 f"Predicted structure feature {feature} not supported, "
                 f"use one of {[f.value for f in list(PredStructFeature)]}"
             )
+
+        # create the device object
+        self.device = torch.device(self.device)
+        self.dtype = getattr(torch, self.dtype)  # convert string to torch dtype
 
 
 def get_model_instance(config: Config, tf_len: int) -> BaseModel:
