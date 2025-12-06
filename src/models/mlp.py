@@ -21,16 +21,25 @@ class MLPModel(BaseModel):
             # block of encoders first!
             self.encoders = nn.ModuleList(
                 [
-                    nn.Sequential(nn.Linear(tf_len, config.mlp_hidden_size), nn.ReLU())
+                    nn.Sequential(
+                        nn.Linear(tf_len, config.mlp_hidden_size),
+                        nn.ReLU(),
+                        nn.Dropout(0.1),
+                    )
                     for _ in range(
                         len(config.pred_struct_features or []) + config.use_probs
                     )
                 ]
             )
 
+            total_hidden_size = len(self.encoders) * config.mlp_hidden_size + 1
+
             # then we have the final classifier
             self.final_mlp = nn.Sequential(
-                nn.Linear(len(self.encoders) * config.mlp_hidden_size + 1, 1),
+                nn.Linear(total_hidden_size, total_hidden_size // 2),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(total_hidden_size // 2, 1),
                 nn.Sigmoid(),  # last layer for binary classification
             )
 
@@ -52,16 +61,18 @@ class MLPModel(BaseModel):
         self.model = self.MLPModule(tf_len, config).to(
             device=self.config.device, dtype=self.config.dtype
         )
-        self.model_name = "encoders"
+        self.model_name = "MLPModel"
 
     def _train(self, data):
         train_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=True)
 
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+        optimizer = torch.optim.AdamW(
+            self.model.parameters(), lr=0.001, weight_decay=0.01
+        )
         criterion = nn.BCELoss()
 
         step = 0
-        for _ in range(self.config.num_epochs):
+        for _ in range(self.config.epochs):
             for batch in tqdm(train_loader):
                 optimizer.zero_grad()
 

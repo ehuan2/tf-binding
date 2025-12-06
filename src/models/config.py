@@ -100,6 +100,12 @@ class Config:
             default=None,
             help="Whether to use the probability vector of the sequence in the model",
         )
+        parser.add_argument(
+            "--restart_train",
+            action="store_true",
+            default=None,
+            help="Whether to restart training from scratch",
+        )
 
         # then we finally add on arguments for each structure feature
         # so others can specify paths if they want
@@ -116,7 +122,7 @@ class Config:
             help="The mlp hidden size of the MLP model",
         )
         parser.add_argument(
-            "--num_epochs",
+            "--epochs",
             type=int,
             help="The number of epochs to train the MLP model",
         )
@@ -182,7 +188,7 @@ class Config:
         assert self.tf is not None, "Transcription factor (--tf) must be specified"
 
         # now let's rewrite the config's keys that are not defined (boolean):
-        for key in ["use_probs"]:
+        for key in ["use_probs", "restart_train"]:
             if not hasattr(self, key) or getattr(self, key) is None:
                 setattr(self, key, False)
 
@@ -193,7 +199,7 @@ class Config:
             "pwm_file": "data/factorbookMotifPwm.txt",
             "pred_struct_features": [],
             "mlp_hidden_size": 16,
-            "num_epochs": 1,
+            "epochs": 1,
             "device": "cpu",
             "dtype": "float64",
         }
