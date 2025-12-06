@@ -6,36 +6,23 @@ The base model class for TF binding site prediction models.
 
 import mlflow
 import os
-from models.helpers import batch_to_pandas, pandas_to_batch
-import torch
-
-
-class MLFlowWrapper(mlflow.pyfunc.PythonModel):
-    """
-    A class that wraps around the model to be used with MLFlow.
-    """
-
-    def __init__(self, config, tf_len):
-        super().__init__()
-        self.config = config
-        self.tf_len = tf_len
-
-    def load_context(self, context):
-        # here let's instantiate the model, and call its load function
-        self.model = self.config.get_model_instance(self.tf_len)
-        self.model._load_model(context.artifacts)
-
-    def predict(self, context, model_input):
-        # implement the prediction logic here, first we need to transform
-        # the model input into the right format
-        model_input = pandas_to_batch(model_input, self.config)
-        return self.model._predict(model_input)
+from torch.utils.data import DataLoader
+from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_curve, auc
+import matplotlib.pyplot as plt
 
 
 class BaseModel:
     def __init__(self, config, tf_len):
         self.config = config
         self.tf_len = tf_len
+
+    def train_and_eval(self, train_data, eval_data):
+        """
+        Combined training and evaluation function.
+        """
+        with mlflow.start_run():
+            self.train(train_data)
+            self.evaluate(eval_data)
 
     def train(self, data):
         """
@@ -65,44 +52,18 @@ class BaseModel:
                 )
                 return
 
-        # before we train, let's ensure that a few things are set
-        assert hasattr(
-            self, "model_name"
-        ), "Model name not specified in the model class."
-        assert hasattr(
-            self, "pth_path"
-        ), "Path to model file not specified in the model class."
-
         # otherwise let's train the new model
-        with mlflow.start_run():
-            mlflow.log_params(self.config.__dict__)
-            self._train(data)
+        mlflow.log_params(self.config.__dict__)
+        self._train(data)
 
-            # after training, we need to save the model
-            self.save_model()
+        # after training, we need to save the model
+        self._save_model()
 
     def _train(self, data):
         raise NotImplementedError("Train method not implemented.")
 
-    def _predict(self, data):
+    def _predict(self, data_loader):
         raise NotImplementedError("Predict method not implemented.")
-
-    def _ensure_batch_process(self, data, df):
-        # let's create all the data into one place now:
-        data = torch.utils.data.DataLoader(data, len(data), shuffle=False)
-        return_to_batch = pandas_to_batch(df, self.config)
-        data = [batch for batch in data][0]
-        assert data["interval"]["Sequence"] == return_to_batch["interval"]["Sequence"]
-        assert torch.equal(
-            data["interval"]["Log_Prob"], return_to_batch["interval"]["Log_Prob"]
-        )
-        for feature in self.config.pred_struct_features:
-            assert torch.equal(
-                data["structure_features"][feature],
-                return_to_batch["structure_features"][feature],
-            )
-        assert torch.equal(data["label"], return_to_batch["label"])
-        print("Batch processing check passed!")
 
     def evaluate(self, data):
         """
@@ -110,33 +71,49 @@ class BaseModel:
         relying on the predict function.
         """
         print(f"Evaluating model from {self.model_uri}")
-        df = batch_to_pandas(data)
-        self._ensure_batch_process(data, df)
-        result = mlflow.models.evaluate(
-            self.model_uri,
-            df,
-            targets="label",
-            model_type="classifier",
+        self._load_model()
+        data_loader = DataLoader(data, batch_size=len(data), shuffle=False)
+
+        scores = self._predict(data_loader)
+        labels = [batch for batch in data_loader][0]["label"].cpu().numpy()
+        predictions = (scores >= 0.5).astype(float)
+
+        assert (
+            labels.shape == predictions.shape
+        ), "Labels and predictions shape mismatch"
+
+        accuracy = (predictions == labels).mean()
+        print(f"Evaluation accuracy: {accuracy}")
+
+        # now we log the metrics to mlflow
+        fpr, tpr, _ = roc_curve(labels, scores)
+        roc_auc = roc_auc_score(labels, scores)
+        precision, recall, _ = precision_recall_curve(labels, scores)
+        pr_auc = auc(recall, precision)
+        mlflow.log_metrics(
+            {
+                "eval_accuracy": accuracy,
+                "eval_roc_auc": roc_auc,
+                "eval_pr_auc": pr_auc,
+            }
         )
-        print(result.metrics)  # print out the evaluation metrics
+
+        # now we plot the ROC and PR curves
+        plt.figure()
+        plt.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})")
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("Receiver Operating Characteristic (ROC) Curve")
+        plt.legend(loc="lower right")
+        plt.tight_layout()
+        plt.savefig("roc_curve.png")
+        plt.close()
+
+        mlflow.log_artifact("roc_curve.png")
+        os.remove("roc_curve.png")
 
     def _load_model(self):
         raise NotImplementedError("Load model method not implemented.")
 
     def _save_model(self):
         raise NotImplementedError("Save model method not implemented.")
-
-    def save_model(self):
-        """
-        Save the model to the specified artifact path.
-        """
-        print("Saving model...")
-        self._save_model()
-        self.model_uri = mlflow.pyfunc.log_model(
-            artifact_path=self.model_name,
-            python_model=MLFlowWrapper(self.config, self.tf_len),
-            artifacts={self.model_name: self.pth_path},
-        ).model_uri
-
-        # clean up the local model file
-        os.remove(self.pth_path)

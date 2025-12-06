@@ -225,13 +225,14 @@ class Config:
         self.device = torch.device(self.device)
         self.dtype = getattr(torch, self.dtype)  # convert string to torch dtype
 
-    def get_model_instance(self, tf_len: int) -> BaseModel:
-        """
-        Factory function to get the model instance based on the architecture specified in the config.
-        """
-        if self.architecture == "mlp":
-            from models.mlp import MLPModel
 
-            return MLPModel(self, tf_len)
-        else:
-            raise ValueError(f"Unknown architecture: {self.architecture}")
+def get_model_instance(config, tf_len: int) -> BaseModel:
+    """
+    Factory function to get the model instance based on the architecture specified in the config.
+    """
+    if config.architecture == "mlp":
+        from models.mlp import MLPModel
+
+        return MLPModel(config, tf_len)
+    else:
+        raise ValueError(f"Unknown architecture: {config.architecture}")
