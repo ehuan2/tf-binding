@@ -16,6 +16,7 @@ class ModelSelection(str, Enum):
     """Enum that contains all possible model choices."""
 
     MLP = "mlp"
+    LOGREG = "logreg"
 
 
 class PredStructFeature(str, Enum):
@@ -230,9 +231,14 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
     """
     Factory function to get the model instance based on the architecture specified in the config.
     """
-    if config.architecture == "mlp":
+    if config.architecture == ModelSelection.MLP:
         from models.mlp import MLPModel
 
         return MLPModel(config, tf_len)
+        
+    elif config.architecture == ModelSelection.LOGREG:
+        from models.logreg import LogisticRegressionModel
+        return LogisticRegressionModel(config, tf_len)
+
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
