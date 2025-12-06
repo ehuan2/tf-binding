@@ -226,7 +226,7 @@ class Config:
         self.dtype = getattr(torch, self.dtype)  # convert string to torch dtype
 
 
-def get_model_instance(config: Config, tf_len: int) -> BaseModel:
+def get_model_instance(config, tf_len: int) -> BaseModel:
     """
     Factory function to get the model instance based on the architecture specified in the config.
     """
