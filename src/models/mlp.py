@@ -92,24 +92,22 @@ class MLPModel(BaseModel):
                 mlflow.log_metrics(
                     {"train_loss": loss.item(), "train_acc": accuracy}, step=step
                 )
-                break
 
     def _save_model(self):
         torch.save(self.model.state_dict(), self.pth_path)
 
-    def _load_model(self):
-        self.model = mlflow.pytorch.load_model(self.model_uri).to(
-            device=self.config.device, dtype=self.config.dtype
+    def _load_model(self, artifacts):
+        self.model.load_state_dict(
+            torch.load(artifacts[self.model_name], map_location=self.config.device)
         )
 
     def _predict(self, data):
         self.model.eval()
-        data_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=False)
         all_outputs = []
 
         with torch.no_grad():
-            for batch in data_loader:
-                outputs = self.model(batch)
-                all_outputs.append(outputs.cpu())
+            outputs = self.model(data)
+            pred_labels = (outputs >= 0.5).float()
+            all_outputs.append(pred_labels.cpu())
 
         return torch.cat(all_outputs).numpy()

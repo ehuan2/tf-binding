@@ -6,6 +6,8 @@ The base model class for TF binding site prediction models.
 
 import mlflow
 import os
+from models.helpers import batch_to_pandas, pandas_to_batch
+import torch
 
 
 class MLFlowWrapper(mlflow.pyfunc.PythonModel):
@@ -21,14 +23,12 @@ class MLFlowWrapper(mlflow.pyfunc.PythonModel):
     def load_context(self, context):
         # here let's instantiate the model, and call its load function
         self.model = self.config.get_model_instance(self.tf_len)
-        self.model._load_model()
+        self.model._load_model(context.artifacts)
 
     def predict(self, context, model_input):
         # implement the prediction logic here, first we need to transform
         # the model input into the right format
-
-        # TODO: pandas dataframe to what we had before
-
+        model_input = pandas_to_batch(model_input, self.config)
         return self.model._predict(model_input)
 
 
@@ -78,8 +78,8 @@ class BaseModel:
             mlflow.log_params(self.config.__dict__)
             self._train(data)
 
-        # after training, we need to save the model
-        self.save_model()
+            # after training, we need to save the model
+            self.save_model()
 
     def _train(self, data):
         raise NotImplementedError("Train method not implemented.")
@@ -87,21 +87,38 @@ class BaseModel:
     def _predict(self, data):
         raise NotImplementedError("Predict method not implemented.")
 
+    def _ensure_batch_process(self, data, df):
+        # let's create all the data into one place now:
+        data = torch.utils.data.DataLoader(data, len(data), shuffle=False)
+        return_to_batch = pandas_to_batch(df, self.config)
+        data = [batch for batch in data][0]
+        assert data["interval"]["Sequence"] == return_to_batch["interval"]["Sequence"]
+        assert torch.equal(
+            data["interval"]["Log_Prob"], return_to_batch["interval"]["Log_Prob"]
+        )
+        for feature in self.config.pred_struct_features:
+            assert torch.equal(
+                data["structure_features"][feature],
+                return_to_batch["structure_features"][feature],
+            )
+        assert torch.equal(data["label"], return_to_batch["label"])
+        print("Batch processing check passed!")
+
     def evaluate(self, data):
         """
         Evaluation of the data should be the same across all models,
         relying on the predict function.
         """
-
-        # df = self.batch_to_pandas(data)
-
-        # result = mlflow.models.evaluate(
-        #     self.model_uri,
-        #     df,
-        #     targets='label',
-        #     model_type="classifier",
-        # )
-        # print(result.metrics)
+        print(f"Evaluating model from {self.model_uri}")
+        df = batch_to_pandas(data)
+        self._ensure_batch_process(data, df)
+        result = mlflow.models.evaluate(
+            self.model_uri,
+            df,
+            targets="label",
+            model_type="classifier",
+        )
+        print(result.metrics)  # print out the evaluation metrics
 
     def _load_model(self):
         raise NotImplementedError("Load model method not implemented.")
@@ -116,8 +133,8 @@ class BaseModel:
         print("Saving model...")
         self._save_model()
         self.model_uri = mlflow.pyfunc.log_model(
+            artifact_path=self.model_name,
             python_model=MLFlowWrapper(self.config, self.tf_len),
-            name=self.model_name,
             artifacts={self.model_name: self.pth_path},
         ).model_uri
 
