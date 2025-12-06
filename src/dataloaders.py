@@ -71,7 +71,9 @@ class IntervalDataset(Dataset):
 
         interval_dict = {
             TFColumns.SEQ.value: interval[TFColumns.SEQ.value],
-            TFColumns.LOG_PROB.value: interval[TFColumns.LOG_PROB.value],
+            TFColumns.LOG_PROB.value: torch.tensor(
+                interval[TFColumns.LOG_PROB.value]
+            ).to(device=self.config.device, dtype=self.config.dtype),
         }
 
         structure_features = {}
@@ -83,7 +85,9 @@ class IntervalDataset(Dataset):
             if strand == "-":
                 seq = get_negative_strand_subsequence(seq)
 
-            pwm_scores = torch.tensor(get_ind_score(self.pwm, seq), dtype=torch.float32)
+            pwm_scores = torch.tensor(get_ind_score(self.pwm, seq)).to(
+                device=self.config.device, dtype=self.config.dtype
+            )
             structure_features["pwm_scores"] = pwm_scores
 
         # extract the predicted features from the bigwig file
@@ -93,12 +97,16 @@ class IntervalDataset(Dataset):
                 interval[TFColumns.START.value],
                 interval[TFColumns.END.value],
             )
-            structure_features[feature] = torch.tensor(values, dtype=torch.float32)
+            structure_features[feature] = torch.tensor(values).to(
+                device=self.config.device, dtype=self.config.dtype
+            )
 
         return {
             "interval": interval_dict,
             "structure_features": structure_features,
-            "label": torch.tensor(self.is_tf_site, dtype=torch.float32),
+            "label": torch.tensor(self.is_tf_site).to(
+                device=self.config.device, dtype=self.config.dtype
+            ),
         }
 
 
@@ -125,6 +133,8 @@ def get_data_splits(config: Config):
     pos_df = read_samples(pos_file, names=columns)
     neg_df = read_samples(neg_file, names=columns)
 
+    tf_len = len(pos_df.iloc[0][TFColumns.SEQ.value])
+
     # now let's create the positive and negative training/testing splits
     pos_dataset = IntervalDataset(pos_df, is_tf_site=1, config=config)
     neg_dataset = IntervalDataset(neg_df, is_tf_site=0, config=config)
@@ -140,4 +150,4 @@ def get_data_splits(config: Config):
     train_dataset = ConcatDataset([pos_train, neg_train])
     test_dataset = ConcatDataset([pos_test, neg_test])
 
-    return train_dataset, test_dataset
+    return train_dataset, test_dataset, tf_len

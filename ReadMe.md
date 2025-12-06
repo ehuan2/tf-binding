@@ -42,6 +42,18 @@ python src/main.py -c configs/<config.yaml>
 ```
 Or add any of the flags found under `src/models/config.py` to override any values in the yaml file.
 
+### MLFlow
+For training, we also use mlflow, a framework used for organizing different ML training runs. To access the dashboard, simply run:
+```
+mlflow server --port 5000
+```
+or run:
+```
+make mlflow
+```
+and access the dashboard through the URL shown in the terminal.
+
+
 ### Configs
 Take the `configs/simple.yaml` as an example, where you can set the following:
 1. `architecture`, must be set. See `src/models/config.py` for a list of all models.
@@ -58,6 +70,11 @@ where the tabs delimit the nucleotide probabilities.
 8. `pred_struct_features`, a list input for the types of structural features to include.
 9. `<feat>_file_name` the file name for the specified structural feature. Defaults to `<pred_struct_data_dir>/hg19.<pred_struct>.wig.bw`.
 10. `use_probs`, whether or not we will use the probability scores from the position weight matrix per nucleotide.
+11. `restart_train` specifies whether or not to use the previous found model given the exact same parametrization.
+12. `mlp_hidden_size` specifies the hidden size used for the MLP block.
+13. `epochs` specifies the number of epochs to train the model for.
+14. `device` specifies the torch device to use.
+15. `dtype` specifies the data type to use for training the MLP model.
 
 
 ## Contributing

@@ -30,3 +30,6 @@ run_simple:
 
 preprocess_ctcf:
 	python src/preprocess/preprocess.py --tf CTCF --pwm_file ./data/factorbookMotifPwm.txt
+
+mlflow:
+	mlflow server --port 5000

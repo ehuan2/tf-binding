@@ -9,12 +9,13 @@ from enum import Enum
 
 from models.base import BaseModel
 import yaml
+import torch
 
 
 class ModelSelection(str, Enum):
     """Enum that contains all possible model choices."""
 
-    SIMPLE = "simple"
+    MLP = "mlp"
 
 
 class PredStructFeature(str, Enum):
@@ -99,6 +100,12 @@ class Config:
             default=None,
             help="Whether to use the probability vector of the sequence in the model",
         )
+        parser.add_argument(
+            "--restart_train",
+            action="store_true",
+            default=None,
+            help="Whether to restart training from scratch",
+        )
 
         # then we finally add on arguments for each structure feature
         # so others can specify paths if they want
@@ -108,6 +115,27 @@ class Config:
                 type=str,
                 help=f"The file name of the {feature.value} predicted structure file",
             )
+
+        parser.add_argument(
+            "--mlp_hidden_size",
+            type=int,
+            help="The mlp hidden size of the MLP model",
+        )
+        parser.add_argument(
+            "--epochs",
+            type=int,
+            help="The number of epochs to train the MLP model",
+        )
+        parser.add_argument(
+            "--device",
+            type=str,
+            help="The device to use for training the MLP model",
+        )
+        parser.add_argument(
+            "--dtype",
+            type=str,
+            help="The data type to use for training the MLP model",
+        )
 
         # only parse the args that we know, and throw out what we don't know
         args = parser.parse_known_args()[0]
@@ -160,7 +188,7 @@ class Config:
         assert self.tf is not None, "Transcription factor (--tf) must be specified"
 
         # now let's rewrite the config's keys that are not defined (boolean):
-        for key in ["use_probs"]:
+        for key in ["use_probs", "restart_train"]:
             if not hasattr(self, key) or getattr(self, key) is None:
                 setattr(self, key, False)
 
@@ -170,6 +198,10 @@ class Config:
             "train_split": 0.8,
             "pwm_file": "data/factorbookMotifPwm.txt",
             "pred_struct_features": [],
+            "mlp_hidden_size": 16,
+            "epochs": 1,
+            "device": "cpu",
+            "dtype": "float64",
         }
 
         for feature in PredStructFeature:
@@ -189,14 +221,18 @@ class Config:
                 f"use one of {[f.value for f in list(PredStructFeature)]}"
             )
 
+        # create the device object
+        self.device = torch.device(self.device)
+        self.dtype = getattr(torch, self.dtype)  # convert string to torch dtype
 
-def get_model_instance(config: Config) -> BaseModel:
+
+def get_model_instance(config: Config, tf_len: int) -> BaseModel:
     """
     Factory function to get the model instance based on the architecture specified in the config.
     """
-    if config.architecture == "simple":
-        from models.simple import SimpleModel
+    if config.architecture == "mlp":
+        from models.mlp import MLPModel
 
-        return SimpleModel(config)
+        return MLPModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")

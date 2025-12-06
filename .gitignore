@@ -2,6 +2,9 @@
 real_configs/
 data/
 logs/
+*.db
+mlruns/
+mlflow*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
