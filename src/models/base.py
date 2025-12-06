@@ -13,6 +13,7 @@ from sklearn.metrics import (
     precision_recall_curve,
     auc,
     f1_score,
+    confusion_matrix,
 )
 import matplotlib.pyplot as plt
 
@@ -89,13 +90,22 @@ class BaseModel:
             roc_auc = roc_auc_score(labels, scores)
             precision, recall, _ = precision_recall_curve(labels, scores)
             pr_auc = auc(recall, precision)
+
             f1 = f1_score(labels, predictions)
+
+            cm = confusion_matrix(labels, predictions)
+            tn, fp, fn, tp = cm.ravel()
+
             mlflow.log_metrics(
                 {
                     "eval_accuracy": accuracy,
                     "eval_roc_auc": roc_auc,
                     "eval_pr_auc": pr_auc,
                     "f1_score": f1,
+                    "true_positives": tp,
+                    "true_negatives": tn,
+                    "false_positives": fp,
+                    "false_negatives": fn,
                 }
             )
 
