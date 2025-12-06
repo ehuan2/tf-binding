@@ -22,6 +22,9 @@ clean_fwd_best_neg_seqs:
 clean_rev_best_neg_seqs:
 	rm -r data/tf_sites/*/negative/reverse_best_negative_sequences.txt
 
+clean_ml_flow:
+	rm -r mlruns; rm mlflow.db
+
 preprocess:
 	python src/preprocess/preprocess.py
 

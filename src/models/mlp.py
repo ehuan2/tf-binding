@@ -3,6 +3,7 @@ import mlflow
 
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 
 from tqdm import tqdm
 
@@ -91,7 +92,6 @@ class MLPModel(BaseModel):
                 mlflow.log_metrics(
                     {"train_loss": loss.item(), "train_acc": accuracy}, step=step
                 )
-                break
 
     def _save_model(self):
         self.model_uri = mlflow.pytorch.log_model(
@@ -112,9 +112,6 @@ class MLPModel(BaseModel):
         with torch.no_grad():
             for batch in data_loader:
                 outputs = self.model(batch)
-                pred_labels = (outputs >= 0.5).float()
-                accuracy = ((pred_labels) == batch["label"]).float().mean().item()
-                print(f"Batch accuracy: {accuracy}")
                 all_outputs.append(outputs.cpu())
 
         return torch.cat(all_outputs).numpy()

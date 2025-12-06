@@ -19,4 +19,5 @@ if __name__ == "__main__":
     model = get_model_instance(config, tf_len)
 
     # Then we train the model and evaluate
-    model.train_and_eval(train_dataset, test_dataset)
+    model.train(train_dataset)
+    model.evaluate(test_dataset)
