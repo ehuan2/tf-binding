@@ -4,7 +4,7 @@ main.py
 This is the main script to run a model given the specified yaml configuration file.
 """
 
-from models.config import Config, get_model_instance
+from models.config import Config
 from dataloaders import get_data_splits
 
 if __name__ == "__main__":
@@ -16,7 +16,7 @@ if __name__ == "__main__":
     print(f"Testing dataset size: {len(test_dataset)}")
 
     # Depending on the architecture, we would instantiate different models
-    model = get_model_instance(config, tf_len)
+    model = config.get_model_instance(tf_len)
 
     # Then we train the model and evaluate
     model.train(train_dataset)

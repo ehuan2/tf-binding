@@ -16,7 +16,7 @@ class MLPModel(BaseModel):
     """
 
     class MLPModule(nn.Module):
-        def __init__(self, tf_len, config):
+        def __init__(self, config, tf_len):
             super().__init__()
             # block of encoders first!
             self.encoders = nn.ModuleList(
@@ -43,7 +43,10 @@ class MLPModel(BaseModel):
                 nn.Sigmoid(),  # last layer for binary classification
             )
 
-        def forward(self, scores, structure_feats):
+        def forward(self, batch):
+            scores = batch["interval"]["Log_Prob"]
+            structure_feats = batch["structure_features"].values()
+
             embeds = []
             for idx, value in enumerate(structure_feats):
                 encoder = self.encoders[idx]
@@ -56,12 +59,13 @@ class MLPModel(BaseModel):
             return self.final_mlp(combined_feat).squeeze()
 
     def __init__(self, config, tf_len: int):
-        super().__init__(config)
+        super().__init__(config, tf_len)
         self.tf_len = tf_len
-        self.model = self.MLPModule(tf_len, config).to(
+        self.model = self.MLPModule(config, tf_len).to(
             device=self.config.device, dtype=self.config.dtype
         )
         self.model_name = "MLPModel"
+        self.pth_path = "mlp_model.pth"
 
     def _train(self, data):
         train_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=True)
@@ -76,11 +80,9 @@ class MLPModel(BaseModel):
             for batch in tqdm(train_loader):
                 optimizer.zero_grad()
 
-                scores = batch["interval"]["Log_Prob"]
-                structure_feats = batch["structure_features"].values()
-                labels = batch["label"]
+                outputs = self.model(batch)
 
-                outputs = self.model(scores, structure_feats)
+                labels = batch["label"]
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
@@ -88,18 +90,26 @@ class MLPModel(BaseModel):
                 step += 1
                 accuracy = ((outputs >= 0.5).float() == labels).float().mean().item()
                 mlflow.log_metrics(
-                    {"train_loss": loss.item(), "acc": accuracy}, step=step
+                    {"train_loss": loss.item(), "train_acc": accuracy}, step=step
                 )
+                break
 
-        mlflow.pytorch.log_model(self.model, name=self.model_name)
+    def _save_model(self):
+        torch.save(self.model.state_dict(), self.pth_path)
+
+    def _load_model(self):
+        self.model = mlflow.pytorch.load_model(self.model_uri).to(
+            device=self.config.device, dtype=self.config.dtype
+        )
 
     def _predict(self, data):
-        test_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=False)
-        print("Predicting with MLPModel on data:", data)
-        return ["prediction"] * len(data)
+        self.model.eval()
+        data_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=False)
+        all_outputs = []
 
-    def _load_model(self, run_id):
-        self.model = mlflow.pytorch.load_model(
-            model_uri=f"runs:/{run_id}/{self.model_name}",
-            map_location=self.config.device,
-        )
+        with torch.no_grad():
+            for batch in data_loader:
+                outputs = self.model(batch)
+                all_outputs.append(outputs.cpu())
+
+        return torch.cat(all_outputs).numpy()
