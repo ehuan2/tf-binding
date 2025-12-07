@@ -63,7 +63,7 @@ class Config:
         parser.add_argument(
             "--preprocess_data_dir",
             type=str,
-            default="data/tf_sites",
+            #default="data/tf_sites",
             help="The directory containing preprocessed data",
         )
         parser.add_argument(
@@ -101,6 +101,13 @@ class Config:
             default=None,
             help="Whether to use the probability vector of the sequence in the model",
         )
+        parser.add_argument(
+            "--use_seq",
+            action="store_true",
+            default=None,
+            help="Whether to include one-hot sequence features in the model",
+        )
+
         parser.add_argument(
             "--restart_train",
             action="store_true",
@@ -203,6 +210,7 @@ class Config:
             "epochs": 1,
             "device": "cpu",
             "dtype": "float64",
+            "use_seq": True,
         }
 
         for feature in PredStructFeature:
