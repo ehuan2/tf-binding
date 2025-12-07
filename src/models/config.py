@@ -17,6 +17,7 @@ class ModelSelection(str, Enum):
 
     MLP = "mlp"
     LOGREG = "logreg"
+    RANDOM_FOREST = "random_forest"
 
 
 class PredStructFeature(str, Enum):
@@ -240,5 +241,9 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.logreg import LogisticRegressionModel
 
         return LogisticRegressionModel(config, tf_len)
+    elif config.architecture == ModelSelection.RANDOM_FOREST:
+        from models.random_forest import RandomForestModel
+
+        return RandomForestModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
