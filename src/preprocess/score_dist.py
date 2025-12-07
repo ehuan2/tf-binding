@@ -20,15 +20,6 @@ from preprocess_helpers import (
     subset_scores_in_range,
 )
 
-from sklearn.metrics import (
-    roc_curve,
-    roc_auc_score,
-    precision_recall_curve,
-    auc,
-    f1_score,
-    confusion_matrix,
-)
-
 
 def plot_score_distributions(
     positive_scores, negative_scores, rev_negative_scores, tf_name, subset=False
@@ -97,15 +88,6 @@ def get_classifier_rates(pos_scores, neg_scores, rev_neg_scores, tf_name):
     kde_neg = get_kde(neg_scores)
     kde_rev_neg = get_kde(rev_neg_scores)
 
-    """
-    Quick estimates for TF PAX5 at threshold -15.5
-    print(f'False Neg. Estimate: {sum(np.array(pos_scores) <= -15.5)}, {len(pos_scores)}')
-    print(f'True Pos. Estimate: {sum(np.array(pos_scores) >= -15.5)}, {len(pos_scores)}')
-
-    print(f'True Neg. Estimate: {sum(np.array(neg_scores) <= -15.5) + sum(np.array(rev_neg_scores) <= -15.5)}, {len(neg_scores)}')
-    print(f'False Pos. Estimate: {sum(np.array(neg_scores) >= -15.5) + sum(np.array(rev_neg_scores) >= -15.5)}, {len(neg_scores)}')
-    """
-
     def get_score_densities(scores):
         pos_densities = kde.score_samples(np.array(scores).reshape(-1, 1))
         neg_densities = kde_neg.score_samples(np.array(scores).reshape(-1, 1))
@@ -126,8 +108,8 @@ def get_classifier_rates(pos_scores, neg_scores, rev_neg_scores, tf_name):
 
     (
         rev_neg_score_pos_densities,
-        rev_neg_score_neg_densities,
         rev_neg_score_rev_neg_densities,
+        rev_neg_score_rev_rev_neg_densities,
     ) = get_score_densities(rev_neg_scores)
 
     def get_rates(threshold):
@@ -149,8 +131,8 @@ def get_classifier_rates(pos_scores, neg_scores, rev_neg_scores, tf_name):
         )
         fp_rev, tn_rev = classify_scores(
             rev_neg_score_pos_densities,
-            rev_neg_score_neg_densities,
             rev_neg_score_rev_neg_densities,
+            rev_neg_score_rev_rev_neg_densities,
             threshold=threshold,
         )
         return tp, fn, fp + fp_rev, tn + tn_rev
@@ -160,67 +142,39 @@ def get_classifier_rates(pos_scores, neg_scores, rev_neg_scores, tf_name):
     print(f"False Positives: {fp}, True Negatives: {tn}")
     print(f"Total samples: {tp + fn + fp + tn}")
 
-    # now we calculate this using scikit learn instead
-    # First, let's create the scores for each sample instead -- combining them together
-    scores = []
-    for i in range(len(pos_scores)):
-        pos_score = pos_score_pos_densities[i]
-        neg_score = pos_score_neg_densities[i]
-        rev_neg_score = pos_score_rev_neg_densities[i]
-        scores.append(pos_score - max(neg_score, rev_neg_score))
+    # now we want to iterate over different thresholds to see how the rates change
+    tprs = []
+    fprs = []
 
-    for i in range(len(neg_scores)):
-        pos_score = neg_score_pos_densities[i]
-        neg_score = neg_score_neg_densities[i]
-        rev_neg_score = neg_score_rev_neg_densities[i]
-        scores.append(pos_score - max(neg_score, rev_neg_score))
+    threshold = 0.1
 
-    for i in range(len(rev_neg_scores)):
-        pos_score = rev_neg_score_pos_densities[i]
-        neg_score = rev_neg_score_neg_densities[i]
-        rev_neg_score = rev_neg_score_rev_neg_densities[i]
-        scores.append(pos_score - max(neg_score, rev_neg_score))
+    while len(tprs) == 0 or tprs[-1] < 1.0:
+        tp, fn, fp, tn = get_rates(threshold=threshold)
+        print(f"Threshold: {threshold}")
+        print(f"  True Positives: {tp}, False Negatives: {fn}")
+        print(f"  False Positives: {fp}, True Negatives: {tn}")
+        tprs.append(tp / (tp + fn) if (tp + fn) > 0 else 0)
+        fprs.append(fp / (fp + tn) if (fp + tn) > 0 else 0)
+        threshold += 0.05
 
-    predictions = (np.array(scores) >= 0.0).astype(float)
-    labels = np.array(
-        [1] * len(pos_scores) + [0] * (len(neg_scores) + len(rev_neg_scores))
-    )
-
-    f1 = f1_score(labels, predictions)
-    cm = confusion_matrix(labels, predictions)
-    tn, fp, fn, tp = cm.ravel()
-    print("Using sklearn metrics:")
-    print(f"F1 Score: {f1}")
-    print(f"True Positives: {tp}, False Negatives: {fn}")
-    print(f"False Positives: {fp}, True Negatives: {tn}")
-    print(f"Total samples: {tp + fn + fp + tn}")
-
-    fpr, tpr, _ = roc_curve(labels, scores)
-    roc_auc = roc_auc_score(labels, scores)
-    precision, recall, _ = precision_recall_curve(labels, scores)
-    pr_auc = auc(recall, precision)
-
-    # now we plot the ROC and PR curves
-    plt.figure()
-    plt.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})")
+    # now let's plot the ROC curve
+    plt.figure(figsize=(8, 6))
+    plt.plot(fprs, tprs)
+    plt.title("ROC Curve")
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title("Receiver Operating Characteristic (ROC) Curve")
-    plt.legend(loc="lower right")
-    plt.tight_layout()
-    plt.savefig(f"./figs/kde_classifier_roc_curve_{tf_name}.png")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.0])
+    plt.grid()
+    plt.savefig(f"./figs/roc_curve_{tf_name}.png")
     plt.close()
 
-    # PR curve
-    plt.figure()
-    plt.plot(recall, precision, label=f"PR curve (area = {pr_auc:.2f})")
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title("Precision-Recall (PR) Curve")
-    plt.legend(loc="lower left")
-    plt.tight_layout()
-    plt.savefig(f"./figs/kde_classifier_pr_curve_{tf_name}.png")
-    plt.close()
+    # finally, calculate the AUROC
+    auroc = 0.0
+    for i in range(1, len(tprs)):
+        # calculate the trapezoid area and add to auroc
+        auroc += (fprs[i] - fprs[i - 1]) * (tprs[i] + tprs[i - 1]) / 2.0
+    print(f"AUROC: {auroc}")
 
 
 if __name__ == "__main__":
