@@ -19,6 +19,7 @@ import torch
 from torch.utils.data import Dataset, random_split, ConcatDataset
 import os
 import pyBigWig
+import numpy as np
 
 
 class IntervalDataset(Dataset):
@@ -44,7 +45,6 @@ class IntervalDataset(Dataset):
                 config.pred_struct_data_dir is not None
             ), "pred_struct_data_dir must be specified to use structural features"
 
-            self.bw_files = {}
             for feature in config.pred_struct_features:
                 bigwig_path = os.path.join(
                     config.pred_struct_data_dir,
@@ -151,3 +151,68 @@ def get_data_splits(config: Config):
     test_dataset = ConcatDataset([pos_test, neg_test])
 
     return train_dataset, test_dataset, tf_len
+
+
+def one_hot_encode(seq: str) -> np.ndarray:
+    """
+    One-hot encode a DNA sequence.
+    Returns a (4, L) array with rows [A, C, G, T].
+    Ambiguous bases (e.g. N) get all zeros at that position.
+    """
+    NUC_TO_IDX = {"A": 0, "C": 1, "G": 2, "T": 3}
+    seq = seq.upper()
+    L = len(seq)
+    arr = np.zeros((4, L), dtype=np.float32)
+    for i, base in enumerate(seq):
+        idx = NUC_TO_IDX.get(base)
+        if idx is not None:
+            arr[idx, i] = 1.0
+    return arr
+
+
+def batch_to_scikit(config, item):
+    # --- sequence (optional for ablations) ---
+    seq_vec = np.array([], dtype=np.float32)
+    if getattr(config, "use_seq", True):
+        seq = item["interval"][TFColumns.SEQ.value]
+        seq_vec = one_hot_encode(seq).reshape(-1)  # (4*L,)
+
+    # --- structure features (from DNAshape + PWM/etc.) ---
+    struct_feats = []
+    for _, tensor_val in item["structure_features"].items():
+        arr = tensor_val.detach().cpu().numpy().astype(np.float32)
+        struct_feats.append(arr)
+
+    if struct_feats:
+        struct_vec = np.concatenate(struct_feats)
+    else:
+        struct_vec = np.array([], dtype=np.float32)
+
+    # --- concatenate only the non-empty parts ---
+    parts = []
+    if seq_vec.size > 0:
+        parts.append(seq_vec)
+    if struct_vec.size > 0:
+        parts.append(struct_vec)
+
+    if not parts:
+        raise ValueError("Both sequence and structure features are disabled!")
+
+    X = np.concatenate(parts).astype(np.float32)
+    y = float(item["label"].item())
+    return X, y
+
+
+def dataset_to_scikit(config, dataset):
+    """
+    Convert an entire dataset to X, y arrays for scikit-learn.
+    """
+    X_list, y_list = [], []
+    for i in range(len(dataset)):
+        X_i, y_i = batch_to_scikit(config, dataset[i])
+        X_list.append(X_i)
+        y_list.append(y_i)
+
+    X = np.vstack(X_list)
+    y = np.array(y_list)
+    return X, y

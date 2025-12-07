@@ -6,7 +6,6 @@ The base model class for TF binding site prediction models.
 
 import mlflow
 import os
-from torch.utils.data import DataLoader
 from sklearn.metrics import (
     roc_curve,
     roc_auc_score,
@@ -18,11 +17,26 @@ from sklearn.metrics import (
 import matplotlib.pyplot as plt
 
 
-class BaseModel:
+def final_method(func):
+    func.__is_final__ = True
+    return func
+
+
+class FinalGuard(type):
+    def __init__(cls, name, bases, attrs):
+        for base in bases:
+            for key, val in base.__dict__.items():
+                if getattr(val, "__is_final__", False) and key in attrs:
+                    raise TypeError(f"Cannot override final method {key}")
+        super().__init__(name, bases, attrs)
+
+
+class BaseModel(metaclass=FinalGuard):
     def __init__(self, config, tf_len):
         self.config = config
         self.tf_len = tf_len
 
+    @final_method
     def train(self, data):
         """
         Training function wrapper that includes the MLFlow baseline.
@@ -45,7 +59,7 @@ class BaseModel:
                 print(f"Warning: found multiple runs with the same config!")
             if len(runs) > 0:
                 run_id = runs.iloc[0].run_id
-                self.model_uri = f"runs:/{run_id}/{self.model_name}"
+                self.model_uri = f"runs:/{run_id}/{self.__class__.__name__}"
                 print(
                     f"Model with same config found, loading from uri {self.model_uri}"
                 )
@@ -62,21 +76,22 @@ class BaseModel:
     def _train(self, data):
         raise NotImplementedError("Train method not implemented.")
 
-    def _predict(self, data_loader):
+    def _predict(self, data):
         raise NotImplementedError("Predict method not implemented.")
 
+    @final_method
     def evaluate(self, data):
         """
         Evaluation of the data should be the same across all models,
         relying on the predict function.
         """
+        assert self.model_uri is not None, "Model URI is not set, cannot load model."
+
         with mlflow.start_run():
             mlflow.log_params({**self.config.__dict__, "train": False})
             self._load_model()
-            data_loader = DataLoader(data, batch_size=len(data), shuffle=False)
 
-            scores = self._predict(data_loader)
-            labels = [batch for batch in data_loader][0]["label"].cpu().numpy()
+            scores, labels = self._predict(data)
             predictions = (scores >= 0.5).astype(float)
 
             assert (

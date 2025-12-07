@@ -66,6 +66,7 @@ Take the `configs/simple.yaml` as an example, where you can set the following:
 GFI1	8	1.000000,1.000000,0.000000,0.000000,0.626866,0.000000,0.671642,0.000000,	0.000000,0.000000,0.298507,1.000000,0.000000,0.716418,0.000000,0.000000,	0.000000,0.000000,0.000000,0.000000,0.000000,0.283582,0.000000,1.000000,	0.000000,0.000000,0.701493,0.000000,0.373134,0.000000,0.328358,0.000000,
 ```
 where the tabs delimit the nucleotide probabilities.
+
 7. `pred_struct_data_dir`, the directory containing the BigWig files. **Note these files must all be in the same directory**.
 8. `pred_struct_features`, a list input for the types of structural features to include.
 9. `<feat>_file_name` the file name for the specified structural feature. Defaults to `<pred_struct_data_dir>/hg19.<pred_struct>.wig.bw`.
@@ -75,6 +76,7 @@ where the tabs delimit the nucleotide probabilities.
 13. `epochs` specifies the number of epochs to train the model for.
 14. `device` specifies the torch device to use.
 15. `dtype` specifies the data type to use for training the MLP model.
+16. `use_seq` specifies whether to use the one-hot encoding from the sequence itself.
 
 
 ## Contributing

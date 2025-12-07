@@ -1,0 +1,11 @@
+# configs/pax5_logreg.yaml
+architecture: logreg
+tf: PAX5
+pred_struct_data_dir: /path/to/pred/
+pred_struct_features:
+  - MGW
+  - Roll
+  - HelT
+batch_size: 32
+use_probs: true
+use_seq: true
