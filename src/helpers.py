@@ -14,7 +14,6 @@ import pyranges as pr
 import pandas as pd
 
 
-
 def get_subsequence(fasta_file, start, end):
     """
     Extracts a subsequence from a fasta file given start and end positions.

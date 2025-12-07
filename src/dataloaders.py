@@ -37,7 +37,6 @@ class IntervalDataset(Dataset):
         self.pr = pr
         self.is_tf_site = is_tf_site
         self.config = config
-        self.bw_files = {}
 
         # let's open up all the bigwig files that are specified
         if config.pred_struct_features:
