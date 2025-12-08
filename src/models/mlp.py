@@ -60,11 +60,9 @@ class MLPModel(BaseModel):
 
     def __init__(self, config, tf_len: int):
         super().__init__(config, tf_len)
-        self.tf_len = tf_len
         self.model = self.MLPModule(config, tf_len).to(
             device=self.config.device, dtype=self.config.dtype
         )
-        self.model_name = "MLPModel"
         self.pth_path = "mlp_model.pth"
 
     def _train(self, data):
@@ -95,7 +93,7 @@ class MLPModel(BaseModel):
 
     def _save_model(self):
         self.model_uri = mlflow.pytorch.log_model(
-            self.model, name=self.model_name
+            self.model, name=self.__class__.__name__
         ).model_uri
 
     def _load_model(self):
@@ -104,14 +102,17 @@ class MLPModel(BaseModel):
             map_location=self.config.device,
         )
 
-    def _predict(self, data_loader):
+    def _predict(self, data):
         self.model.eval()
 
+        data_loader = DataLoader(data, batch_size=len(data), shuffle=False)
         all_outputs = []
+        labels = []
 
         with torch.no_grad():
             for batch in data_loader:
                 outputs = self.model(batch)
                 all_outputs.append(outputs.cpu())
+                labels.append(batch["label"].cpu())
 
-        return torch.cat(all_outputs).numpy()
+        return torch.cat(all_outputs).numpy(), torch.cat(labels).numpy()

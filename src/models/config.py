@@ -17,6 +17,7 @@ class ModelSelection(str, Enum):
 
     MLP = "mlp"
     LOGREG = "logreg"
+    RANDOM_FOREST = "random_forest"
 
 
 class PredStructFeature(str, Enum):
@@ -63,7 +64,6 @@ class Config:
         parser.add_argument(
             "--preprocess_data_dir",
             type=str,
-            default="data/tf_sites",
             help="The directory containing preprocessed data",
         )
         parser.add_argument(
@@ -161,15 +161,6 @@ class Config:
             if value is not None:
                 setattr(self, key, value)
 
-        # require that the architecture and data path must exist
-        assert all(
-            hasattr(self, attr) and getattr(self, attr) is not None
-            for attr in ("architecture", "preprocess_data_dir", "pred_struct_data_dir")
-        ), (
-            "Fields `architecture`, `preprocess_data_dir`, and `pred_struct_data_dir` in yaml config must exist, "
-            "otherwise, --architecture, --preprocess_data_dir, and --pred_struct_data_dir must be set"
-        )
-
         # change the architecture type to an enum
         if not isinstance(self.architecture, ModelSelection):
             assert self.architecture in model_sel, (
@@ -177,16 +168,6 @@ class Config:
                 f"use one of {model_sel}"
             )
             self.architecture = ModelSelection(self.architecture)
-
-        assert os.path.exists(
-            self.preprocess_data_dir
-        ), f"Preprocessed data directory {self.preprocess_data_dir} does not exist"
-
-        assert os.path.exists(
-            self.pred_struct_data_dir
-        ), f"DNA predicted structure data directory {self.pred_struct_data_dir} does not exist"
-
-        assert self.tf is not None, "Transcription factor (--tf) must be specified"
 
         # now let's rewrite the config's keys that are not defined (boolean):
         for key in ["use_probs", "restart_train"]:
@@ -203,6 +184,8 @@ class Config:
             "epochs": 1,
             "device": "cpu",
             "dtype": "float64",
+            "use_seq": True,
+            "preprocess_data_dir": "data/tf_sites",
         }
 
         for feature in PredStructFeature:
@@ -226,6 +209,25 @@ class Config:
         self.device = torch.device(self.device)
         self.dtype = getattr(torch, self.dtype)  # convert string to torch dtype
 
+        # Finally, put all the assertions at the end
+        assert all(
+            hasattr(self, attr) and getattr(self, attr) is not None
+            for attr in ("architecture", "preprocess_data_dir", "pred_struct_data_dir")
+        ), (
+            "Fields `architecture`, `preprocess_data_dir`, and `pred_struct_data_dir` in yaml config must exist, "
+            "otherwise, --architecture, --preprocess_data_dir, and --pred_struct_data_dir must be set"
+        )
+
+        assert os.path.exists(
+            self.preprocess_data_dir
+        ), f"Preprocessed data directory {self.preprocess_data_dir} does not exist"
+
+        assert os.path.exists(
+            self.pred_struct_data_dir
+        ), f"DNA predicted structure data directory {self.pred_struct_data_dir} does not exist"
+
+        assert self.tf is not None, "Transcription factor (--tf) must be specified"
+
 
 def get_model_instance(config, tf_len: int) -> BaseModel:
     """
@@ -235,10 +237,13 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.mlp import MLPModel
 
         return MLPModel(config, tf_len)
-        
     elif config.architecture == ModelSelection.LOGREG:
         from models.logreg import LogisticRegressionModel
-        return LogisticRegressionModel(config, tf_len)
 
+        return LogisticRegressionModel(config, tf_len)
+    elif config.architecture == ModelSelection.RANDOM_FOREST:
+        from models.random_forest import RandomForestModel
+
+        return RandomForestModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
