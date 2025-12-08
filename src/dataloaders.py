@@ -20,6 +20,7 @@ from torch.utils.data import Dataset, random_split, ConcatDataset
 import os
 import pyBigWig
 import numpy as np
+from tqdm import tqdm
 
 
 class IntervalDataset(Dataset):
@@ -96,8 +97,8 @@ class IntervalDataset(Dataset):
         for feature, bw_file in self.bw_files.items():
             values = bw_file.values(
                 interval[TFColumns.CHROM.value],
-                interval[TFColumns.START.value],
-                interval[TFColumns.END.value],
+                interval[TFColumns.START.value] - self.config.context_window,
+                interval[TFColumns.END.value] + self.config.context_window,
             )
             structure_features[feature] = torch.tensor(values).to(
                 device=self.config.device, dtype=self.config.dtype
@@ -135,7 +136,9 @@ def get_data_splits(config: Config):
     pos_df = read_samples(pos_file, names=columns)
     neg_df = read_samples(neg_file, names=columns)
 
-    tf_len = len(pos_df.iloc[0][TFColumns.SEQ.value])
+    tf_len = len(pos_df.iloc[0][TFColumns.SEQ.value]) + 2 * config.context_window * len(
+        config.pred_struct_features
+    )
 
     # now let's create the positive and negative training/testing splits
     pos_dataset = IntervalDataset(pos_df, is_tf_site=1, config=config)
@@ -175,13 +178,26 @@ def one_hot_encode(seq: str) -> np.ndarray:
 def batch_to_scikit(config, item):
     # --- sequence (optional for ablations) ---
     seq_vec = np.array([], dtype=np.float32)
-    if getattr(config, "use_seq", True):
+    if config.use_seq:
         seq = item["interval"][TFColumns.SEQ.value]
         seq_vec = one_hot_encode(seq).reshape(-1)  # (4*L,)
 
+    # --- Add in the score as well ---
+    score = [item["interval"][TFColumns.LOG_PROB.value].detach().cpu().numpy()]
+
+    # --- Add in the probability vector features if applicable ---
+    if config.use_probs:
+        pwm_scores = item["structure_features"]["pwm_scores"]
+        pwm_arr = pwm_scores.detach().cpu().numpy().astype(np.float32)
+        score.extend(pwm_arr.tolist())
+
+    score = np.array(score, dtype=np.float32)
+
     # --- structure features (from DNAshape + PWM/etc.) ---
     struct_feats = []
-    for _, tensor_val in item["structure_features"].items():
+    for name, tensor_val in item["structure_features"].items():
+        if name == "pwm_scores":
+            continue  # already added in score part
         arr = tensor_val.detach().cpu().numpy().astype(np.float32)
         struct_feats.append(arr)
 
@@ -196,9 +212,7 @@ def batch_to_scikit(config, item):
         parts.append(seq_vec)
     if struct_vec.size > 0:
         parts.append(struct_vec)
-
-    if not parts:
-        raise ValueError("Both sequence and structure features are disabled!")
+    parts.append(score)
 
     X = np.concatenate(parts).astype(np.float32)
     y = float(item["label"].item())
@@ -210,11 +224,12 @@ def dataset_to_scikit(config, dataset):
     Convert an entire dataset to X, y arrays for scikit-learn.
     """
     X_list, y_list = [], []
-    for i in range(len(dataset)):
+    for i in tqdm(range(len(dataset))):
         X_i, y_i = batch_to_scikit(config, dataset[i])
         X_list.append(X_i)
         y_list.append(y_i)
 
     X = np.vstack(X_list)
     y = np.array(y_list)
+    print(f"Transformed data into the following shape: {X.shape, y.shape}")
     return X, y

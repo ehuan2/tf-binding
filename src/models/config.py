@@ -102,6 +102,12 @@ class Config:
             help="Whether to use the probability vector of the sequence in the model",
         )
         parser.add_argument(
+            "--use_seq",
+            action="store_true",
+            default=None,
+            help="Whether to use the sequence one-hot encoding in the model",
+        )
+        parser.add_argument(
             "--restart_train",
             action="store_true",
             default=None,
@@ -126,6 +132,11 @@ class Config:
             "--epochs",
             type=int,
             help="The number of epochs to train the MLP model",
+        )
+        parser.add_argument(
+            "--context_window",
+            type=int,
+            help="The extra context window size to use on each side of the TF binding site",
         )
         parser.add_argument(
             "--device",
@@ -170,7 +181,7 @@ class Config:
             self.architecture = ModelSelection(self.architecture)
 
         # now let's rewrite the config's keys that are not defined (boolean):
-        for key in ["use_probs", "restart_train"]:
+        for key in ["use_probs", "restart_train", "use_seq"]:
             if not hasattr(self, key) or getattr(self, key) is None:
                 setattr(self, key, False)
 
@@ -184,8 +195,8 @@ class Config:
             "epochs": 1,
             "device": "cpu",
             "dtype": "float64",
-            "use_seq": True,
             "preprocess_data_dir": "data/tf_sites",
+            "context_window": 0,
         }
 
         for feature in PredStructFeature:
