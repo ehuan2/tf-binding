@@ -34,6 +34,7 @@ Then, to prepare for a specific TF with other structural features, use:
 ```
 python src/preprocess/preprocess.py --tf <str> --bigwig_dir <str> --bigwigs <filename for MGW> <filename for HelT> ...
 ```
+**Note: You will not be able to use these preprocessed bigwig files if you intend to use the flag --context_window later**.
 
 ## Training
 To run a training loop, simply run:
@@ -74,9 +75,10 @@ where the tabs delimit the nucleotide probabilities.
 11. `restart_train` specifies whether or not to use the previous found model given the exact same parametrization.
 12. `mlp_hidden_size` specifies the hidden size used for the MLP block.
 13. `epochs` specifies the number of epochs to train the model for.
-14. `device` specifies the torch device to use.
-15. `dtype` specifies the data type to use for training the MLP model.
-16. `use_seq` specifies whether to use the one-hot encoding from the sequence itself.
+14. `context_window` specifies the extra context window for the model to use.
+15. `device` specifies the torch device to use.
+16. `dtype` specifies the data type to use for training the MLP model.
+17. `use_seq` specifies whether to use the one-hot encoding from the sequence itself.
 
 
 ## Contributing

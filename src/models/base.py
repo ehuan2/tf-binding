@@ -68,6 +68,7 @@ class BaseModel(metaclass=FinalGuard):
         with mlflow.start_run():
             mlflow.log_params({**self.config.__dict__, "train": True})
             # otherwise let's train the new model
+            print("Training new model...")
             self._train(data)
 
             # after training, we need to save the model
@@ -87,6 +88,7 @@ class BaseModel(metaclass=FinalGuard):
         """
         assert self.model_uri is not None, "Model URI is not set, cannot load model."
 
+        print("Evaluating model...")
         with mlflow.start_run():
             mlflow.log_params({**self.config.__dict__, "train": False})
             self._load_model()
