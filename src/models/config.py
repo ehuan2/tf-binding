@@ -221,7 +221,7 @@ class Config:
             "preprocess_data_dir": "data/tf_sites",
             "context_window": 0,
 
-            "svm_kernel": "rbf",
+            "svm_kernel": "linear",
             "svm_C": 1.0,
             "svm_gamma": "scale",
             "svm_degree": 3,

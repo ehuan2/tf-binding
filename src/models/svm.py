@@ -10,11 +10,6 @@ from sklearn.pipeline import Pipeline
 
 
 class SVMModel(BaseModel):
-    """
-    SVM classifier version of the TFBS binding/unbinding model.
-    Uses the same feature flattening as the MLPModel.
-    """
-
     def __init__(self, config, tf_len: int):
         super().__init__(config, tf_len)
 
