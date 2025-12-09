@@ -18,6 +18,7 @@ class ModelSelection(str, Enum):
     MLP = "mlp"
     LOGREG = "logreg"
     RANDOM_FOREST = "random_forest"
+    SVM = "svm"
 
 
 class PredStructFeature(str, Enum):
@@ -149,6 +150,28 @@ class Config:
             help="The data type to use for training the MLP model",
         )
 
+        # --- SVM params ---
+        parser.add_argument(
+            "--svm_kernel",
+            type=str,
+            help='Kernel type for SVM. Options: "linear", "poly", "rbf", "sigmoid".',
+        )
+        parser.add_argument(
+            "--svm_C",
+            type=float,
+            help="Regularization parameter C for SVM. Higher values indicate lower regularization.",
+        )
+        parser.add_argument(
+            "--svm_gamma",
+            type=str,
+            help='Kernel coefficient gamma for SVM, only used for non-linear kernels.',
+        )
+        parser.add_argument(
+            "--svm_degree",
+            type=int,
+            help="Degree for polynomial kernel, only used when kernel='poly'",
+        )
+
         # only parse the args that we know, and throw out what we don't know
         args = parser.parse_known_args()[0]
 
@@ -197,6 +220,11 @@ class Config:
             "dtype": "float64",
             "preprocess_data_dir": "data/tf_sites",
             "context_window": 0,
+
+            "svm_kernel": "linear",
+            "svm_C": 1.0,
+            "svm_gamma": "scale",
+            "svm_degree": 3,
         }
 
         for feature in PredStructFeature:
@@ -256,5 +284,9 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.random_forest import RandomForestModel
 
         return RandomForestModel(config, tf_len)
+    elif config.architecture == ModelSelection.SVM:
+        from models.svm import SVMModel
+
+        return SVMModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
