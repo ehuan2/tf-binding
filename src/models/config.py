@@ -19,6 +19,7 @@ class ModelSelection(str, Enum):
     LOGREG = "logreg"
     RANDOM_FOREST = "random_forest"
     SVM = "svm"
+    XGBOOST = "xgboost"
 
 
 class PredStructFeature(str, Enum):
@@ -135,6 +136,11 @@ class Config:
             help="The number of epochs to train the MLP model",
         )
         parser.add_argument(
+            "--random_seed",
+            type=int,
+            help="The random seed to use for training the model",
+        )
+        parser.add_argument(
             "--context_window",
             type=int,
             help="The extra context window size to use on each side of the TF binding site",
@@ -220,11 +226,11 @@ class Config:
             "dtype": "float64",
             "preprocess_data_dir": "data/tf_sites",
             "context_window": 0,
-
             "svm_kernel": "linear",
             "svm_C": 1.0,
             "svm_gamma": "scale",
             "svm_degree": 3,
+            "random_seed": 42,
         }
 
         for feature in PredStructFeature:
@@ -288,5 +294,9 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.svm import SVMModel
 
         return SVMModel(config, tf_len)
+    elif config.architecture == ModelSelection.XGBOOST:
+        from models.boosting import BoostingModel
+
+        return BoostingModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")

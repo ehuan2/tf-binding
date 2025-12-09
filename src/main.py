@@ -6,10 +6,12 @@ This is the main script to run a model given the specified yaml configuration fi
 
 from models.config import Config, get_model_instance
 from dataloaders import get_data_splits
+import torch
 
 if __name__ == "__main__":
     config = Config()
 
+    torch.manual_seed(config.random_seed)
     # Now get the training and testing data splits
     train_dataset, test_dataset, tf_len = get_data_splits(config)
     print(f"Training dataset size: {len(train_dataset)}")
