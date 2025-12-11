@@ -21,6 +21,7 @@ class ModelSelection(str, Enum):
     SVM = "svm"
     XGBOOST = "xgboost"
     CNN = "cnn"
+    TWODCNN = "2dcnn"
 
 
 class PredStructFeature(str, Enum):
@@ -73,6 +74,11 @@ class Config:
             "--train_split",
             type=float,
             help="The proportion of data to use for training",
+        )
+        parser.add_argument(
+            "--validation_split",
+            type=float,
+            help="The proportion of training data to use for validation",
         )
         parser.add_argument(
             "--batch_size",
@@ -232,6 +238,7 @@ class Config:
             "svm_gamma": "scale",
             "svm_degree": 3,
             "random_seed": 42,
+            "validation_split": 0.0,
         }
 
         for feature in PredStructFeature:
@@ -303,5 +310,9 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.cnn import CNNTFModel
 
         return CNNTFModel(config, tf_len)
+    elif config.architecture == ModelSelection.TWODCNN:
+        from models.twodcnn import CNN2DTFModel
+
+        return CNN2DTFModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")

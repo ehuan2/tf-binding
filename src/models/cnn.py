@@ -87,16 +87,16 @@ class CNNTFModel(BaseModel):
             device=self.config.device, dtype=self.config.dtype
         )
 
-    def _train(self, data):
-        loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=True)
+    def _train(self, train_data, val_data):
+        loader = DataLoader(train_data, batch_size=self.config.batch_size, shuffle=True)
 
         optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=3e-4, weight_decay=1e-4
+            self.model.parameters(), lr=3e-4, weight_decay=1e-5
         )
         criterion = nn.BCEWithLogitsLoss()
 
         step = 0
-        for _ in range(self.config.epochs):
+        for epoch in range(self.config.epochs):
             for batch in tqdm(loader):
                 optimizer.zero_grad()
 
@@ -114,6 +114,12 @@ class CNNTFModel(BaseModel):
                     {"train_loss": loss.item(), "train_acc": acc}, step=step
                 )
                 step += 1
+
+            # then validate
+            probs, labels = self._predict(val_data)
+            val_preds = (probs >= 0.5).astype(float)
+            val_acc = (val_preds == labels).mean()
+            mlflow.log_metrics({"val_acc": val_acc}, step=epoch)
 
     def _save_model(self):
         self.model_uri = mlflow.pytorch.log_model(

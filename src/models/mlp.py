@@ -86,8 +86,10 @@ class MLPModel(BaseModel):
             device=self.config.device, dtype=self.config.dtype
         )
 
-    def _train(self, data):
-        train_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=True)
+    def _train(self, train_data, val_data):
+        train_loader = DataLoader(
+            train_data, batch_size=self.config.batch_size, shuffle=True
+        )
 
         optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=3e-4, weight_decay=1e-4
@@ -95,7 +97,9 @@ class MLPModel(BaseModel):
         criterion = nn.BCEWithLogitsLoss()
 
         step = 0
-        for _ in range(self.config.epochs):
+        for epoch in range(self.config.epochs):
+            # first train
+            self.model.train()
             for batch in tqdm(train_loader):
                 optimizer.zero_grad()
 
@@ -117,6 +121,12 @@ class MLPModel(BaseModel):
                     },
                     step=step,
                 )
+
+            # then validate
+            probs, labels = self._predict(val_data)
+            val_preds = (probs >= 0.5).astype(float)
+            val_acc = (val_preds == labels).mean()
+            mlflow.log_metrics({"val_acc": val_acc}, step=epoch)
 
     def _save_model(self):
         self.model_uri = mlflow.pytorch.log_model(

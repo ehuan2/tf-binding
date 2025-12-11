@@ -19,8 +19,8 @@ class BoostingModel(BaseModel):
             eval_metric="logloss",
         )
 
-    def _train(self, dataset):
-        X, y = dataset_to_scikit(self.config, dataset)
+    def _train(self, train_dataset, val_dataset):
+        X, y = dataset_to_scikit(self.config, train_dataset)
         self.model.fit(X, y)
 
     def _predict(self, dataset):

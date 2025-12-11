@@ -37,7 +37,7 @@ class BaseModel(metaclass=FinalGuard):
         self.tf_len = tf_len
 
     @final_method
-    def train(self, data):
+    def train(self, train_data, val_data):
         """
         Training function wrapper that includes the MLFlow baseline.
         This function then calls _train for the actual training loop.
@@ -69,12 +69,12 @@ class BaseModel(metaclass=FinalGuard):
             mlflow.log_params({**self.config.__dict__, "train": True})
             # otherwise let's train the new model
             print("Training new model...")
-            self._train(data)
+            self._train(train_data, val_data)
 
             # after training, we need to save the model
             self._save_model()
 
-    def _train(self, data):
+    def _train(self, train_data, val_data):
         raise NotImplementedError("Train method not implemented.")
 
     def _predict(self, data):
