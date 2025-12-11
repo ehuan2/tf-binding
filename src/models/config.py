@@ -22,6 +22,7 @@ class ModelSelection(str, Enum):
     XGBOOST = "xgboost"
     CNN = "cnn"
     TWODCNN = "2dcnn"
+    VAE = "vae"
 
 
 class PredStructFeature(str, Enum):
@@ -138,6 +139,16 @@ class Config:
             help="The mlp hidden size of the MLP model",
         )
         parser.add_argument(
+            "--vae_latent_dim",
+            type=int,
+            help="The latent dimension size of the VAE model",
+        )
+        parser.add_argument(
+            "--vae_epochs",
+            type=int,
+            help="The number of epochs to train the VAE model",
+        )
+        parser.add_argument(
             "--epochs",
             type=int,
             help="The number of epochs to train the MLP model",
@@ -155,12 +166,12 @@ class Config:
         parser.add_argument(
             "--device",
             type=str,
-            help="The device to use for training the MLP model",
+            help="The device to use for training the PyTorch models",
         )
         parser.add_argument(
             "--dtype",
             type=str,
-            help="The data type to use for training the MLP model",
+            help="The data type to use for training the PyTorch models",
         )
 
         # --- SVM params ---
@@ -239,6 +250,8 @@ class Config:
             "svm_degree": 3,
             "random_seed": 42,
             "validation_split": 0.0,
+            "vae_latent_dim": 32,
+            "vae_epochs": 5,
         }
 
         for feature in PredStructFeature:
@@ -314,5 +327,9 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.twodcnn import CNN2DTFModel
 
         return CNN2DTFModel(config, tf_len)
+    elif config.architecture == ModelSelection.VAE:
+        from models.vae import VAEModel
+
+        return VAEModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")

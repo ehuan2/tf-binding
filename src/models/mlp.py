@@ -92,7 +92,7 @@ class MLPModel(BaseModel):
         )
 
         optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=3e-4, weight_decay=1e-4
+            self.model.parameters(), lr=3e-4, weight_decay=1e-5
         )
         criterion = nn.BCEWithLogitsLoss()
 

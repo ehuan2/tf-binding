@@ -91,7 +91,7 @@ class CNNTFModel(BaseModel):
         loader = DataLoader(train_data, batch_size=self.config.batch_size, shuffle=True)
 
         optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=3e-4, weight_decay=1e-5
+            self.model.parameters(), lr=1e-3, weight_decay=1e-5
         )
         criterion = nn.BCEWithLogitsLoss()
 
