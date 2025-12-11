@@ -2,14 +2,19 @@
 from models.base import BaseModel
 from dataloaders import dataset_to_scikit
 
+from sklearn.pipeline import make_pipeline
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
 import mlflow
 
 
 class RandomForestModel(BaseModel):
     def __init__(self, config, tf_len: int):
         super().__init__(config, tf_len)
-        self.model = RandomForestClassifier(n_estimators=100, max_depth=None, n_jobs=-1)
+        self.model = make_pipeline(
+            StandardScaler(),
+            RandomForestClassifier(n_estimators=1000, max_depth=None, n_jobs=-1),
+        )
 
     def _train(self, dataset):
         X, y = dataset_to_scikit(self.config, dataset)

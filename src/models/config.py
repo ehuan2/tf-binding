@@ -20,6 +20,7 @@ class ModelSelection(str, Enum):
     RANDOM_FOREST = "random_forest"
     SVM = "svm"
     XGBOOST = "xgboost"
+    CNN = "cnn"
 
 
 class PredStructFeature(str, Enum):
@@ -298,5 +299,9 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.boosting import BoostingModel
 
         return BoostingModel(config, tf_len)
+    elif config.architecture == ModelSelection.CNN:
+        from models.cnn import CNNTFModel
+
+        return CNNTFModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")
