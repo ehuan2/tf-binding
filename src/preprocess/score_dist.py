@@ -222,6 +222,8 @@ def get_classifier_rates(pos_scores, neg_scores, rev_neg_scores, tf_name):
     plt.savefig(f"./figs/kde_classifier_pr_curve_{tf_name}.png")
     plt.close()
 
+    print(f"AUC-ROC: {roc_auc}, AUC-PR: {pr_auc}")
+
 
 if __name__ == "__main__":
     args = get_args()
