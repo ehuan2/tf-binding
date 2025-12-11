@@ -24,10 +24,10 @@ class MLPModel(BaseModel):
                     nn.Sequential(
                         nn.Linear(tf_len, config.mlp_hidden_size),
                         nn.ReLU(),
-                        nn.Dropout(0.1),
+                        # nn.Dropout(0.1),
                         nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
                         nn.ReLU(),
-                        nn.Dropout(0.1),
+                        # nn.Dropout(0.1),
                         nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
                     )
                     for _ in range(
@@ -45,11 +45,13 @@ class MLPModel(BaseModel):
                 self.final_mlp = nn.Sequential(
                     nn.Linear(total_hidden_size, total_hidden_size),
                     nn.ReLU(),
-                    nn.Dropout(0.1),
+                    # nn.Dropout(0.1),
                     nn.Linear(total_hidden_size, total_hidden_size),
                     nn.ReLU(),
-                    nn.Dropout(0.1),
-                    nn.Linear(total_hidden_size, 1),
+                    # nn.Dropout(0.1),
+                    nn.Linear(total_hidden_size, 64),
+                    nn.ReLU(),
+                    nn.Linear(64, 1),
                 )
             else:
                 self.final_mlp = nn.Sequential(
@@ -69,7 +71,9 @@ class MLPModel(BaseModel):
                 embeds.append(encoder(batch["structure_features"][key]))
 
             if self.config.use_probs:
-                embeds.append(encoder[-1](batch["structure_features"]["pwm_scores"]))
+                embeds.append(
+                    self.encoders[-1](batch["structure_features"]["pwm_scores"])
+                )
 
             # concatenate over the features not the batch dimension
             if len(embeds) > 0:

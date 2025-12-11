@@ -119,4 +119,5 @@ uvicorn==0.38.0
 virtualenv==20.35.4
 Werkzeug==3.1.4
 wheel==0.45.1
+xgboost==3.1.2
 zipp==3.23.0

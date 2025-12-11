@@ -5,6 +5,7 @@ logs/
 *.db
 mlruns/
 mlflow*
+data.zip
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

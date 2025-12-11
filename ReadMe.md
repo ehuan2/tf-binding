@@ -1,11 +1,13 @@
-# Transcription Binding Prediction
+# 🧬 Transcription Factor Binding Prediction 🧬
+
+TF-binding prediction can be easily achieved through the motif scorings of the sequence, however the sequences that remain overlapping are difficult to classify with accuracy. This GitHub repository is the implementation of the paper: TODO INSERT PAPER LINK HERE!
 
 ## Requirements setup
-Due to the `pyranges` environment, we suggest to use conda, with the following:
+We setup everything with conda as shown below:
 ```
 conda create -n tfbinding python=3.12
 ```
-then, you can install the requirements using:
+Then, you can install the requirements using:
 ```
 pip install -r requirements.txt
 ```
@@ -13,28 +15,49 @@ Note: we require python version 3.12 for the pyranges1 package.
 
 
 ## Data setup and Preprocessing
-You will need the following files:
-1. Human genome data found from: http://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/chromFa.tar.gz. Move this under the folder of `data/fasta`, and unzip.
-2. An active regulatory region file in `bed` format. See https://en.wikipedia.org/wiki/BED_(file_format) for more information.
-3. Set of genomic coordinates for true transcription factor binding sites in a txt file.
-4. Set of motifs for each transcription factor, encoded as a probability weight matrix, that suggests a sequence should be technically open, also in a txt file.
+For all this existing data, we host the preprocessed data (alongside the other information) on our Google Drive here:
+1. Sequence information and TF regions needed for the models: https://drive.google.com/file/d/1UgGh8bTUN7pOOCwPaKt5_kgtzi7GYpJd/view
+2. The structural features Aused to enhance the model are found here: https://drive.google.com/file/d/19oz42DGXyzThQAhL74M-4sPO18xmgEuk/view?usp=sharing
 
-Make sure to set them all under the same directory, ideally under `data/`, however you can specify during preprocessing to use any path with:
+### Sequence information and TF Region Data Preprocessing
+Otherwise, if you wish to do it yourself, follow these instructions:
+1. Human genome sequence data found from: http://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/chromFa.tar.gz. Move this under the folder of `data/fasta`, and unzip.
+2. Active regulatory regions in `bed` format. See https://en.wikipedia.org/wiki/BED_(file_format) for more information.
+3. Set of genomic coordinates for true transcription factor binding sites in a txt file. This is usually from a factorbook.
+4. Set of motifs for each transcription factor, encoded as a probability weight matrix, that suggests a sequence is likely to be binded by a certain transcription factor, also in a txt file.
+
+Make sure to set them all under the same directory. The default directory that the preprocessing scripts are under `data`, however, feel free to specify the following:
 ```
 python src/preprocess/preprocess.py --fasta_data_dir <str> --chip_seq_file <str> --true_tf_file <str> --pwm_file <str>
 ```
-or if you have everything under the correct locations of `data/fasta, data/wgEncodeRegTfbsClusteredV3.GM12878.merged.bed, data/factorbookMotifPos.txt, data/factorbookMotifPwm.txt` respectively, then you can simply run:
+
+If you are unzipping from the Google Drive, and have everything under the correct locations of `data/fasta, data/wgEncodeRegTfbsClusteredV3.GM12878.merged.bed, data/factorbookMotifPos.txt, data/factorbookMotifPwm.txt` respectively, then you can simply run:
+```
+python src/preprocess/preprocess.py --tf <str>
+```
+
+However, if you wish to preprocess for all the TFs, you can use the following command. This will preprocess the data and spit out to what is specified by `--output_dir`, which is `data/tf_sites` by default. Warning: this will likely run a long time as the default is to run over every TF. **We suggest to only run the preprocessing script on TFs that you need**.
 ```
 make preprocess
 ```
+### Structural Data Preprocessing
+The currently supported structural information is:
 
-This will preprocess the data and spit out to what is specified by `--output_dir`, which is `data/tf_sites` by default.
+1. MGW: https://rohslab.usc.edu/ftp/hg19/hg19.MGW.wig.bw
+2. PrOT: https://rohslab.usc.edu/ftp/hg19/hg19.ProT.wig.bw
+3. HelT: https://rohslab.usc.edu/ftp/hg19/hg19.HelT.wig.bw
+4. Roll: https://rohslab.usc.edu/ftp/hg19/hg19.Roll.wig.bw
+5. OC2: https://rohslab.usc.edu/ftp/hg19/hg19.OC2.wig.bw
 
-Then, to prepare for a specific TF with other structural features, use:
+Either download to the same directory, which then you can further preprocess (as these files are huge) for faster training or use the preprocessed files from: https://drive.google.com/file/d/19oz42DGXyzThQAhL74M-4sPO18xmgEuk/view?usp=sharing as above. You can add more structural compatability by adding to `src/models/config.py`.
+
+If you wish to preprocess your own, simply run:
 ```
-python src/preprocess/preprocess.py --tf <str> --bigwig_dir <str> --bigwigs <filename for MGW> <filename for HelT> ...
+python src/preprocess/preprocess.py --tf PAX5 --bigwig_dir <str> --bigwigs hg19.MGW.wig.bw hg19.HelT.wig.bw hg19.ProT.wig.bw hg19.OC2.wig.bw hg19.Roll.wig.bw
 ```
-**Note: You will not be able to use these preprocessed bigwig files if you intend to use the flag --context_window later**.
+This will be outputted to the specified bigwig directory under `<tf>/bigwig_processed`.
+
+**Note: These preprocessed bigwig files are not compatible with extra context window lengths, i.e. with conjunction of the flag --context_window**.
 
 ## Training
 To run a training loop, simply run:
@@ -73,12 +96,14 @@ where the tabs delimit the nucleotide probabilities.
 9. `<feat>_file_name` the file name for the specified structural feature. Defaults to `<pred_struct_data_dir>/hg19.<pred_struct>.wig.bw`.
 10. `use_probs`, whether or not we will use the probability scores from the position weight matrix per nucleotide.
 11. `restart_train` specifies whether or not to use the previous found model given the exact same parametrization.
-12. `mlp_hidden_size` specifies the hidden size used for the MLP block.
+12. `random_seed` specifies the random seeding to use to ensure the same data splits across runs and model comparisons.
 13. `epochs` specifies the number of epochs to train the model for.
 14. `context_window` specifies the extra context window for the model to use.
 15. `device` specifies the torch device to use.
 16. `dtype` specifies the data type to use for training the MLP model.
 17. `use_seq` specifies whether to use the one-hot encoding from the sequence itself.
+
+Many others are included in the config file itself, and are model dependent. Read `src/models/config.py` for more information.
 
 
 ## Contributing
