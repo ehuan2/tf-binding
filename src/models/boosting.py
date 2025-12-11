@@ -1,21 +1,22 @@
-# models/logreg.py
+# models/xgboost.py
 from models.base import BaseModel
 from dataloaders import dataset_to_scikit
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+import xgboost as xgb
 import mlflow
 
 
-class LogisticRegressionModel(BaseModel):
+class BoostingModel(BaseModel):
     def __init__(self, config, tf_len: int):
         super().__init__(config, tf_len)
-        self.model = make_pipeline(
-            StandardScaler(),
-            LogisticRegression(
-                max_iter=5000, penalty="l2", C=1.0, solver="lbfgs", n_jobs=-1
-            ),
+        self.model = xgb.XGBClassifier(
+            n_estimators=100,
+            max_depth=6,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            use_label_encoder=False,
+            eval_metric="logloss",
         )
 
     def _train(self, train_dataset, val_dataset):
@@ -31,11 +32,11 @@ class LogisticRegressionModel(BaseModel):
     def _save_model(self):
         # save the model with mlflow
         print(f"Saving model to MLFlow with name {self.__class__.__name__}")
-        self.model_uri = mlflow.sklearn.log_model(
+        self.model_uri = mlflow.xgboost.log_model(
             self.model, name=self.__class__.__name__
         ).model_uri
 
     def _load_model(self):
-        self.model = mlflow.sklearn.load_model(
+        self.model = mlflow.xgboost.load_model(
             model_uri=self.model_uri,
         )

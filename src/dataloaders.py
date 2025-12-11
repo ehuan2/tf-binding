@@ -149,13 +149,24 @@ def get_data_splits(config: Config):
     train_size_neg = int(config.train_split * len(neg_dataset))
     test_size_neg = len(neg_dataset) - train_size_neg
 
+    # then split based on train and test
     pos_train, pos_test = random_split(pos_dataset, [train_size_pos, test_size_pos])
     neg_train, neg_test = random_split(neg_dataset, [train_size_neg, test_size_neg])
 
+    # finally split on train and validation
+    val_size_pos = int(config.validation_split * len(pos_train))
+    train_size_pos = len(pos_train) - val_size_pos
+    val_size_neg = int(config.validation_split * len(neg_train))
+    train_size_neg = len(neg_train) - val_size_neg
+
+    pos_train, pos_val = random_split(pos_train, [train_size_pos, val_size_pos])
+    neg_train, neg_val = random_split(neg_train, [train_size_neg, val_size_neg])
+
     train_dataset = ConcatDataset([pos_train, neg_train])
     test_dataset = ConcatDataset([pos_test, neg_test])
+    val_dataset = ConcatDataset([pos_val, neg_val])
 
-    return train_dataset, test_dataset, tf_len
+    return train_dataset, test_dataset, val_dataset, tf_len
 
 
 def one_hot_encode(seq: str) -> np.ndarray:

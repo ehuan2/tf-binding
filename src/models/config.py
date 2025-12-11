@@ -19,6 +19,10 @@ class ModelSelection(str, Enum):
     LOGREG = "logreg"
     RANDOM_FOREST = "random_forest"
     SVM = "svm"
+    XGBOOST = "xgboost"
+    CNN = "cnn"
+    TWODCNN = "2dcnn"
+    VAE = "vae"
 
 
 class PredStructFeature(str, Enum):
@@ -71,6 +75,11 @@ class Config:
             "--train_split",
             type=float,
             help="The proportion of data to use for training",
+        )
+        parser.add_argument(
+            "--validation_split",
+            type=float,
+            help="The proportion of training data to use for validation",
         )
         parser.add_argument(
             "--batch_size",
@@ -130,9 +139,24 @@ class Config:
             help="The mlp hidden size of the MLP model",
         )
         parser.add_argument(
+            "--vae_latent_dim",
+            type=int,
+            help="The latent dimension size of the VAE model",
+        )
+        parser.add_argument(
+            "--vae_epochs",
+            type=int,
+            help="The number of epochs to train the VAE model",
+        )
+        parser.add_argument(
             "--epochs",
             type=int,
             help="The number of epochs to train the MLP model",
+        )
+        parser.add_argument(
+            "--random_seed",
+            type=int,
+            help="The random seed to use for training the model",
         )
         parser.add_argument(
             "--context_window",
@@ -142,12 +166,12 @@ class Config:
         parser.add_argument(
             "--device",
             type=str,
-            help="The device to use for training the MLP model",
+            help="The device to use for training the PyTorch models",
         )
         parser.add_argument(
             "--dtype",
             type=str,
-            help="The data type to use for training the MLP model",
+            help="The data type to use for training the PyTorch models",
         )
 
         # --- SVM params ---
@@ -220,11 +244,14 @@ class Config:
             "dtype": "float64",
             "preprocess_data_dir": "data/tf_sites",
             "context_window": 0,
-
             "svm_kernel": "linear",
             "svm_C": 1.0,
             "svm_gamma": "scale",
             "svm_degree": 3,
+            "random_seed": 42,
+            "validation_split": 0.0,
+            "vae_latent_dim": 32,
+            "vae_epochs": 5,
         }
 
         for feature in PredStructFeature:
@@ -288,5 +315,21 @@ def get_model_instance(config, tf_len: int) -> BaseModel:
         from models.svm import SVMModel
 
         return SVMModel(config, tf_len)
+    elif config.architecture == ModelSelection.XGBOOST:
+        from models.boosting import BoostingModel
+
+        return BoostingModel(config, tf_len)
+    elif config.architecture == ModelSelection.CNN:
+        from models.cnn import CNNTFModel
+
+        return CNNTFModel(config, tf_len)
+    elif config.architecture == ModelSelection.TWODCNN:
+        from models.twodcnn import CNN2DTFModel
+
+        return CNN2DTFModel(config, tf_len)
+    elif config.architecture == ModelSelection.VAE:
+        from models.vae import VAEModel
+
+        return VAEModel(config, tf_len)
     else:
         raise ValueError(f"Unknown architecture: {config.architecture}")

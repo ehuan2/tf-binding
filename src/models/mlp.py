@@ -25,71 +25,108 @@ class MLPModel(BaseModel):
                         nn.Linear(tf_len, config.mlp_hidden_size),
                         nn.ReLU(),
                         nn.Dropout(0.1),
+                        nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
+                        nn.ReLU(),
+                        nn.Dropout(0.1),
+                        nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
                     )
                     for _ in range(
                         len(config.pred_struct_features or []) + config.use_probs
                     )
                 ]
             )
+            self.config = config
 
+            # we do the total encoders + 1 for the score
             total_hidden_size = len(self.encoders) * config.mlp_hidden_size + 1
 
             # then we have the final classifier
-            self.final_mlp = nn.Sequential(
-                nn.Linear(total_hidden_size, total_hidden_size // 2),
-                nn.ReLU(),
-                nn.Dropout(0.1),
-                nn.Linear(total_hidden_size // 2, 1),
-                nn.Sigmoid(),  # last layer for binary classification
-            )
+            if total_hidden_size > 1:
+                self.final_mlp = nn.Sequential(
+                    nn.Linear(total_hidden_size, total_hidden_size),
+                    nn.ReLU(),
+                    nn.Dropout(0.1),
+                    nn.Linear(total_hidden_size, total_hidden_size),
+                    nn.ReLU(),
+                    nn.Dropout(0.1),
+                    nn.Linear(total_hidden_size, 1),
+                )
+            else:
+                self.final_mlp = nn.Sequential(
+                    # last layer for binary classification
+                    nn.Linear(total_hidden_size, 1),
+                )
 
         def forward(self, batch):
             scores = batch["interval"]["Log_Prob"]
-            structure_feats = batch["structure_features"].values()
+
+            # first let's normalize the features
+            scores = scores.unsqueeze(1)
 
             embeds = []
-            for idx, value in enumerate(structure_feats):
+            for idx, key in enumerate(self.config.pred_struct_features):
                 encoder = self.encoders[idx]
-                embeds.append(encoder(value))
+                embeds.append(encoder(batch["structure_features"][key]))
+
+            if self.config.use_probs:
+                embeds.append(encoder[-1](batch["structure_features"]["pwm_scores"]))
 
             # concatenate over the features not the batch dimension
-            combined_feat = torch.cat(embeds, dim=1)
-            combined_feat = torch.cat([combined_feat, scores.unsqueeze(1)], dim=1)
+            if len(embeds) > 0:
+                combined_feat = torch.cat(embeds, dim=1)
+                combined_feat = torch.cat([combined_feat, scores], dim=1)
+            else:
+                combined_feat = scores
 
-            return self.final_mlp(combined_feat).squeeze()
+            return self.final_mlp(combined_feat)
 
     def __init__(self, config, tf_len: int):
         super().__init__(config, tf_len)
         self.model = self.MLPModule(config, tf_len).to(
             device=self.config.device, dtype=self.config.dtype
         )
-        self.pth_path = "mlp_model.pth"
 
-    def _train(self, data):
-        train_loader = DataLoader(data, batch_size=self.config.batch_size, shuffle=True)
+    def _train(self, train_data, val_data):
+        train_loader = DataLoader(
+            train_data, batch_size=self.config.batch_size, shuffle=True
+        )
 
         optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=0.001, weight_decay=0.01
+            self.model.parameters(), lr=3e-4, weight_decay=1e-5
         )
-        criterion = nn.BCELoss()
+        criterion = nn.BCEWithLogitsLoss()
 
         step = 0
-        for _ in range(self.config.epochs):
+        for epoch in range(self.config.epochs):
+            # first train
+            self.model.train()
             for batch in tqdm(train_loader):
                 optimizer.zero_grad()
 
                 outputs = self.model(batch)
 
-                labels = batch["label"]
+                labels = batch["label"].unsqueeze(1)
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
 
                 step += 1
                 accuracy = ((outputs >= 0.5).float() == labels).float().mean().item()
+                total_pred_true = (outputs >= 0.5).float().sum()
                 mlflow.log_metrics(
-                    {"train_loss": loss.item(), "train_acc": accuracy}, step=step
+                    {
+                        "train_loss": loss.item(),
+                        "train_acc": accuracy,
+                        "total_pred_true": total_pred_true.item(),
+                    },
+                    step=step,
                 )
+
+            # then validate
+            probs, labels = self._predict(val_data)
+            val_preds = (probs >= 0.5).astype(float)
+            val_acc = (val_preds == labels).mean()
+            mlflow.log_metrics({"val_acc": val_acc}, step=epoch)
 
     def _save_model(self):
         self.model_uri = mlflow.pytorch.log_model(
@@ -112,7 +149,7 @@ class MLPModel(BaseModel):
         with torch.no_grad():
             for batch in data_loader:
                 outputs = self.model(batch)
-                all_outputs.append(outputs.cpu())
-                labels.append(batch["label"].cpu())
+                all_outputs.append(torch.sigmoid(outputs).cpu())
+                labels.append(batch["label"].unsqueeze(1).cpu())
 
         return torch.cat(all_outputs).numpy(), torch.cat(labels).numpy()
