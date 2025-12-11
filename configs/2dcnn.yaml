@@ -1,0 +1,16 @@
+architecture: 2dcnn
+tf: PAX5
+pred_struct_data_dir: /path/to/dataset/bigwig_processed
+batch_size: 128
+use_probs: true
+# device: cuda
+dtype: float32
+pred_struct_features:
+  - MGW
+  - Roll
+  - HelT
+  - OC2
+  - ProT
+epochs: 20
+restart_train: true
+validation_split: 0.2

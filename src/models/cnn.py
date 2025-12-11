@@ -34,16 +34,16 @@ class CNNTFModel(BaseModel):
                 nn.Conv1d(num_channels, 32, kernel_size=5, padding=2),
                 nn.ReLU(),
                 nn.MaxPool1d(kernel_size=2),  # tf_len -> tf_len/2
-                nn.Conv1d(32, 64, kernel_size=5, padding=2),
+                nn.Conv1d(32, 128, kernel_size=5, padding=2),
                 nn.ReLU(),
                 nn.MaxPool1d(kernel_size=2),  # tf_len/2 -> tf_len/4
-                nn.Conv1d(64, 128, kernel_size=3, padding=1),
+                nn.Conv1d(128, 256, kernel_size=3, padding=1),
                 nn.ReLU(),
                 nn.AdaptiveMaxPool1d(1),  # reduce each channel to scalar
             )
 
-            # Output of cnn is (batch, 128, 1) → flatten to (batch, 128)
-            fc_input_size = 128
+            # Output of cnn is (batch, 256, 1) → flatten to (batch, 256)
+            fc_input_size = 256
 
             # If including Log_Prob score explicitly (scalar)
             fc_input_size += 1

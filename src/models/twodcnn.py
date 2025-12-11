@@ -39,19 +39,19 @@ class CNN2DTFModel(BaseModel):
             # 2. 2D CNN layers
             # ---------------------------------------------------------
             self.cnn = nn.Sequential(
-                nn.Conv2d(1, 16, kernel_size=(3, 7), padding=(1, 3)),
+                nn.Conv2d(1, 32, kernel_size=(3, 7), padding=(1, 3)),
                 nn.ReLU(),
                 nn.MaxPool2d(kernel_size=(1, 2)),  # reduce width tf_len/2
-                nn.Conv2d(16, 32, kernel_size=(3, 5), padding=(1, 2)),
+                nn.Conv2d(32, 64, kernel_size=(3, 5), padding=(1, 2)),
                 nn.ReLU(),
                 nn.MaxPool2d(kernel_size=(1, 2)),  # tf_len/2 -> tf_len/4
-                nn.Conv2d(32, 64, kernel_size=(3, 3), padding=1),
+                nn.Conv2d(64, 128, kernel_size=(3, 3), padding=1),
                 nn.ReLU(),
                 nn.AdaptiveMaxPool2d((1, 1)),  # collapse spatial dims
             )
 
-            # Output shape from CNN = (batch, 64, 1, 1)
-            cnn_output_size = 64
+            # Output shape from CNN = (batch, 128, 1, 1)
+            cnn_output_size = 128
             fc_input_size = cnn_output_size + 1
 
             # ---------------------------------------------------------
