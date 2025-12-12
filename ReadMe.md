@@ -18,7 +18,7 @@ Note: we require python version 3.12 for the pyranges1 package.
 For all this existing data, we host the preprocessed data (alongside the other information) on our Google Drive here:
 1. Sequence information and TF regions needed for the models: https://drive.google.com/file/d/1UgGh8bTUN7pOOCwPaKt5_kgtzi7GYpJd/view
 2. The structural features used to enhance the model are found here: https://drive.google.com/file/d/19oz42DGXyzThQAhL74M-4sPO18xmgEuk/view?usp=sharing
-3. The structural features but slightly larger to incorporate a 200 context window around the TF region, found here:
+3. The structural features but slightly larger to incorporate a 200 context window around the TF region, found here: https://drive.google.com/file/d/1FVmIdu91k1Ggo26NnNs3C4KCil62o_PE/view?usp=sharing
 
 ### Sequence information and TF Region Data Preprocessing
 Otherwise, if you wish to do it yourself, follow these instructions:
