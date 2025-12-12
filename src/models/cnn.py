@@ -14,6 +14,108 @@ from models.base import BaseModel
 
 
 class CNNTFModel(BaseModel):
+    class CNNWindowModule(nn.Module):
+        def __init__(self, config, tf_len):
+            super().__init__()
+            self.config = config
+            self.tf_len = tf_len
+
+            # -----------------------------
+            # 1. Separate feature categories
+            # -----------------------------
+            self.struct_feature_names = list(config.pred_struct_features)
+
+            # PWM gets its own separate branch if used
+            self.use_pwm = config.use_probs
+
+            # Number of structural feature channels
+            num_struct_channels = len(self.struct_feature_names)
+
+            # -----------------------------
+            # 2. Structural CNN branch
+            # -----------------------------
+            self.struct_cnn = nn.Sequential(
+                nn.Conv1d(num_struct_channels, 32, kernel_size=5, padding=2),
+                nn.ReLU(),
+                nn.MaxPool1d(2),  # /2
+                nn.Conv1d(32, 128, kernel_size=5, padding=2),
+                nn.ReLU(),
+                nn.MaxPool1d(2),  # /4
+                nn.Conv1d(128, 256, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.AdaptiveMaxPool1d(1),  # → (batch, 256, 1)
+            )
+
+            # -----------------------------
+            # 3. PWM CNN branch (separate)
+            # -----------------------------
+            if self.use_pwm:
+                # PWM has exactly 1 channel: (batch, 1, tf_len)
+                self.pwm_cnn = nn.Sequential(
+                    nn.Conv1d(1, 16, kernel_size=5, padding=2),
+                    nn.ReLU(),
+                    nn.MaxPool1d(2),
+                    nn.Conv1d(16, 64, kernel_size=5, padding=2),
+                    nn.ReLU(),
+                    nn.MaxPool1d(2),
+                    nn.Conv1d(64, 128, kernel_size=3, padding=1),
+                    nn.ReLU(),
+                    nn.AdaptiveMaxPool1d(1),  # → (batch,128,1)
+                )
+                pwm_out_dim = 128
+            else:
+                pwm_out_dim = 0
+
+            # -----------------------------
+            # 4. Final FC classifier
+            # -----------------------------
+            struct_out_dim = 256
+            fc_input = struct_out_dim + pwm_out_dim + 1  # + Log_Prob scalar
+
+            self.fc = nn.Sequential(
+                nn.Linear(fc_input, 64),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(64, 1),
+            )
+
+        def forward(self, batch):
+            # -----------------------------
+            # Structural features → CNN
+            # -----------------------------
+            struct_maps = []
+            for name in self.struct_feature_names:
+                x = batch["structure_features"][name]  # (batch, tf_len)
+                struct_maps.append(x.unsqueeze(1))
+
+            struct_x = torch.cat(struct_maps, dim=1)  # (batch, C_struct, L)
+            struct_feat = self.struct_cnn(struct_x).squeeze(-1)  # (batch,256)
+
+            # -----------------------------
+            # PWM branch (optional)
+            # -----------------------------
+            if self.use_pwm:
+                pwm = batch["structure_features"]["pwm_scores"]  # (batch, tf_len)
+                pwm = pwm.unsqueeze(1)  # (batch,1,tf_len)
+                pwm_feat = self.pwm_cnn(pwm).squeeze(-1)  # (batch,128)
+            else:
+                pwm_feat = None
+
+            # -----------------------------
+            # Log prob
+            # -----------------------------
+            score = batch["interval"]["Log_Prob"].unsqueeze(1)
+
+            # -----------------------------
+            # Concatenate all
+            # -----------------------------
+            if pwm_feat is not None:
+                feats = torch.cat([struct_feat, pwm_feat, score], dim=1)
+            else:
+                feats = torch.cat([struct_feat, score], dim=1)
+
+            return self.fc(feats)
+
     class CNNModule(nn.Module):
         def __init__(self, config, tf_len):
             super().__init__()

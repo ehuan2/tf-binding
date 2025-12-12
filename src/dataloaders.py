@@ -100,6 +100,16 @@ class IntervalDataset(Dataset):
                 interval[TFColumns.START.value] - self.config.context_window,
                 interval[TFColumns.END.value] + self.config.context_window,
             )
+
+            if np.any(np.isnan(values)):
+                raise RuntimeError(
+                    f"""
+NaN values found in feature {feature} for interval {interval}.
+Please make sure that you are using the correct bigwig files with appropriate context window preprocessing.
+Values: {values}
+                """
+                )
+
             structure_features[feature] = torch.tensor(values).to(
                 device=self.config.device, dtype=self.config.dtype
             )

@@ -99,8 +99,8 @@ class Config:
         parser.add_argument(
             "--pred_struct_features",
             nargs="+",
-            type=PredStructFeature,
-            choices=list(PredStructFeature),
+            type=str,
+            choices=[feature.value for feature in list(PredStructFeature)],
             metavar=f"{[feature.value for feature in list(PredStructFeature)]}",
             default=None,
             help="List of predicted structure features to use (e.g., MGW, HelT, ProT, Roll, OC2)",
@@ -188,7 +188,7 @@ class Config:
         parser.add_argument(
             "--svm_gamma",
             type=str,
-            help='Kernel coefficient gamma for SVM, only used for non-linear kernels.',
+            help="Kernel coefficient gamma for SVM, only used for non-linear kernels.",
         )
         parser.add_argument(
             "--svm_degree",
@@ -293,6 +293,7 @@ class Config:
         ), f"DNA predicted structure data directory {self.pred_struct_data_dir} does not exist"
 
         assert self.tf is not None, "Transcription factor (--tf) must be specified"
+        print(self.__dict__)
 
 
 def get_model_instance(config, tf_len: int) -> BaseModel:
