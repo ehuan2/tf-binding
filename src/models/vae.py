@@ -96,8 +96,8 @@ class VAEModel(BaseModel):
         self.feature_names = feature_names
         self.num_features = len(feature_names)
 
-        # Input = all structural features concatenated
-        input_dim = self.num_features * tf_len
+        # Input = all structural features concatenated - 2 * the context window, because use_probs does not include it
+        input_dim = self.num_features * tf_len - 2 * config.context_window
 
         latent_dim = config.vae_latent_dim
         self.model = VAEClassifier(
@@ -199,48 +199,6 @@ class VAEModel(BaseModel):
 
             mlflow.log_metrics({"val_acc": val_acc}, step=epoch)
 
-    def _umap_latent_space(self, val_data):
-        import umap
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        from sklearn.preprocessing import StandardScaler
-
-        self.model.vae.eval()
-
-        loader = DataLoader(val_data, batch_size=len(val_data), shuffle=False)
-        all_mu = []
-        all_labels = []
-
-        with torch.no_grad():
-            for batch in loader:
-                x = self._flatten_features(batch).to(self.config.device)
-                mu, _ = self.model.vae.encode(x)
-                all_mu.append(mu.cpu())
-                all_labels.append(batch["label"].unsqueeze(1).cpu())
-
-        mus = torch.cat(all_mu).numpy()
-        labels = torch.cat(all_labels).numpy().squeeze()
-
-        # Standardize
-        mus_std = StandardScaler().fit_transform(mus)
-
-        # UMAP
-        reducer = umap.UMAP(n_components=2, random_state=42)
-        embedding = reducer.fit_transform(mus_std)
-
-        plt.figure(figsize=(8, 6))
-        sns.scatterplot(
-            x=embedding[:, 0], y=embedding[:, 1], hue=labels, palette="viridis", s=5
-        )
-        plt.title("UMAP of VAE Latent Space")
-        plt.xlabel("UMAP 1")
-        plt.ylabel("UMAP 2")
-        plt.legend(title="Label", loc="best")
-        plt.tight_layout()
-        plt.savefig("vae_latent_umap.png")
-        plt.close()
-        mlflow.log_artifact("vae_latent_umap.png")
-
     # ---------------------------------------------------------
     # Public train() interface
     # ---------------------------------------------------------
@@ -252,10 +210,6 @@ class VAEModel(BaseModel):
         # Stage 1: VAE
         print("Training VAE...")
         self._train_vae(train_loader)
-
-        # TODO: finish this down below
-        # as an extra step, let's plot the UMAP of the latent space
-        # self._umap_latent_space(val_data)
 
         # Stage 2: Classifier
         print("Training classifier...")

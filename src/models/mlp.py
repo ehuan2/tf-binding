@@ -30,10 +30,21 @@ class MLPModel(BaseModel):
                         # nn.Dropout(0.1),
                         nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
                     )
-                    for _ in range(
-                        len(config.pred_struct_features or []) + config.use_probs
-                    )
+                    for _ in range(len(config.pred_struct_features or []))
                 ]
+            )
+            self.encoders.append(
+                nn.Sequential(
+                    nn.Linear(
+                        tf_len - 2 * config.context_window, config.mlp_hidden_size
+                    ),
+                    nn.ReLU(),
+                    # nn.Dropout(0.1),
+                    nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
+                    nn.ReLU(),
+                    # nn.Dropout(0.1),
+                    nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
+                )
             )
             self.config = config
 

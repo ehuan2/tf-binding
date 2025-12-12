@@ -185,9 +185,14 @@ class CNNTFModel(BaseModel):
     # BaseModel integration
     def __init__(self, config, tf_len):
         super().__init__(config, tf_len)
-        self.model = self.CNNModule(config, tf_len).to(
-            device=self.config.device, dtype=self.config.dtype
-        )
+        if config.context_window > 0:
+            self.model = self.CNNWindowModule(config, tf_len).to(
+                device=self.config.device, dtype=self.config.dtype
+            )
+        else:
+            self.model = self.CNNModule(config, tf_len).to(
+                device=self.config.device, dtype=self.config.dtype
+            )
 
     def _train(self, train_data, val_data):
         loader = DataLoader(train_data, batch_size=self.config.batch_size, shuffle=True)
