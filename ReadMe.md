@@ -1,6 +1,6 @@
 # 🧬 Transcription Factor Binding Prediction 🧬
 
-TF-binding prediction can be easily achieved through the motif scorings of the sequence, however the sequences that remain overlapping are difficult to classify with accuracy. This GitHub repository is the implementation of the paper: TODO INSERT PAPER LINK HERE!
+TF-binding prediction can be easily achieved through the motif scorings of the sequence, however the sequences that remain overlapping are difficult to classify with accuracy. This GitHub repository is the implementation of the paper: https://drive.google.com/file/d/16eQ9wBZkh2MYc5stWbwQUWuM3819rsWp/view?usp=sharing.
 
 ## Requirements setup
 We setup everything with conda as shown below:
