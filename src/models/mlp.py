@@ -109,7 +109,9 @@ class MLPModel(BaseModel):
         optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=3e-4, weight_decay=1e-5
         )
-        criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor(2.0).to(self.config.device)
+        )
 
         step = 0
         for epoch in range(self.config.epochs):
