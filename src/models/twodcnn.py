@@ -115,7 +115,9 @@ class CNN2DTFModel(BaseModel):
         optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=1e-3, weight_decay=1e-5
         )
-        criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor(2.0).to(self.config.device)
+        )
 
         step = 0
         for epoch in range(self.config.epochs):

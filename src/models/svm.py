@@ -2,7 +2,6 @@ from models.base import BaseModel
 from dataloaders import dataset_to_scikit
 
 import mlflow
-import numpy as np
 from sklearn.svm import SVC, LinearSVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.calibration import CalibratedClassifierCV
@@ -13,23 +12,28 @@ class SVMModel(BaseModel):
     def __init__(self, config, tf_len: int):
         super().__init__(config, tf_len)
 
-        if config.svm_kernel == 'linear':
+        if config.svm_kernel == "linear":
             base = LinearSVC(C=config.svm_C, max_iter=10000)
             self.model = CalibratedClassifierCV(base)
-        
-        else: # non-linear kernel, much slower
-            self.model = Pipeline([
-                ("scaler", StandardScaler()),
-                ("svm", SVC(
-                    kernel=config.svm_kernel,
-                    C=config.svm_C,
-                    gamma=config.svm_gamma,
-                    degree=config.svm_degree,
-                    probability=True,
-                )),
-            ])
 
-    def _train(self, dataset):
+        else:  # non-linear kernel, much slower
+            self.model = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "svm",
+                        SVC(
+                            kernel=config.svm_kernel,
+                            C=config.svm_C,
+                            gamma=config.svm_gamma,
+                            degree=config.svm_degree,
+                            probability=True,
+                        ),
+                    ),
+                ]
+            )
+
+    def _train(self, dataset, val_data):
         # load all training data into one single array
         X, y = dataset_to_scikit(self.config, dataset)
 
@@ -47,7 +51,4 @@ class SVMModel(BaseModel):
         ).model_uri
 
     def _load_model(self):
-        self.model = mlflow.sklearn.load_model(
-            model_uri=self.model_uri
-        )
-
+        self.model = mlflow.sklearn.load_model(model_uri=self.model_uri)

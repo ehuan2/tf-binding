@@ -1,6 +1,6 @@
 # 🧬 Transcription Factor Binding Prediction 🧬
 
-TF-binding prediction can be easily achieved through the motif scorings of the sequence, however the sequences that remain overlapping are difficult to classify with accuracy. This GitHub repository is the implementation of the paper: TODO INSERT PAPER LINK HERE!
+TF-binding prediction can be easily achieved through the motif scorings of the sequence, however the sequences that remain overlapping are difficult to classify with accuracy. This GitHub repository is the implementation of the paper: https://drive.google.com/file/d/16eQ9wBZkh2MYc5stWbwQUWuM3819rsWp/view?usp=sharing.
 
 ## Requirements setup
 We setup everything with conda as shown below:
@@ -17,7 +17,8 @@ Note: we require python version 3.12 for the pyranges1 package.
 ## Data setup and Preprocessing
 For all this existing data, we host the preprocessed data (alongside the other information) on our Google Drive here:
 1. Sequence information and TF regions needed for the models: https://drive.google.com/file/d/1UgGh8bTUN7pOOCwPaKt5_kgtzi7GYpJd/view
-2. The structural features Aused to enhance the model are found here: https://drive.google.com/file/d/19oz42DGXyzThQAhL74M-4sPO18xmgEuk/view?usp=sharing
+2. The structural features used to enhance the model are found here: https://drive.google.com/file/d/19oz42DGXyzThQAhL74M-4sPO18xmgEuk/view?usp=sharing
+3. The structural features but slightly larger to incorporate a 200 context window around the TF region, found here: https://drive.google.com/file/d/1FVmIdu91k1Ggo26NnNs3C4KCil62o_PE/view?usp=sharing
 
 ### Sequence information and TF Region Data Preprocessing
 Otherwise, if you wish to do it yourself, follow these instructions:
@@ -53,11 +54,11 @@ Either download to the same directory, which then you can further preprocess (as
 
 If you wish to preprocess your own, simply run:
 ```
-python src/preprocess/preprocess.py --tf PAX5 --bigwig_dir <str> --bigwigs hg19.MGW.wig.bw hg19.HelT.wig.bw hg19.ProT.wig.bw hg19.OC2.wig.bw hg19.Roll.wig.bw
+python src/preprocess/preprocess.py --tf PAX5 --bigwig_dir <str> --bigwigs hg19.MGW.wig.bw hg19.HelT.wig.bw hg19.ProT.wig.bw hg19.OC2.wig.bw hg19.Roll.wig.bw --context_window <int>
 ```
-This will be outputted to the specified bigwig directory under `<tf>/bigwig_processed`.
+This will be outputted to the specified bigwig directory under `<tf>/bigwig_processed`. The context window flag is used if you wish to preprocess the bigwigs so that they include more structural information before and after the
 
-**Note: These preprocessed bigwig files are not compatible with extra context window lengths, i.e. with conjunction of the flag --context_window**.
+**Note: These preprocessed bigwig files are not compatible with certain context window lengths. To make them compatible, be sure to preprocess them beforehand using the flag.**.
 
 ## Training
 To run a training loop, simply run:
@@ -98,7 +99,7 @@ where the tabs delimit the nucleotide probabilities.
 11. `restart_train` specifies whether or not to use the previous found model given the exact same parametrization.
 12. `random_seed` specifies the random seeding to use to ensure the same data splits across runs and model comparisons.
 13. `epochs` specifies the number of epochs to train the model for.
-14. `context_window` specifies the extra context window for the model to use.
+14. `context_window` specifies the extra context window for the model to use. Be sure that the proper bigwig files can handle the context window.
 15. `device` specifies the torch device to use.
 16. `dtype` specifies the data type to use for training the MLP model.
 17. `use_seq` specifies whether to use the one-hot encoding from the sequence itself.

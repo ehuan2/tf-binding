@@ -100,6 +100,16 @@ class IntervalDataset(Dataset):
                 interval[TFColumns.START.value] - self.config.context_window,
                 interval[TFColumns.END.value] + self.config.context_window,
             )
+
+            if np.any(np.isnan(values)):
+                raise RuntimeError(
+                    f"""
+NaN values found in feature {feature} for interval {interval}.
+Please make sure that you are using the correct bigwig files with appropriate context window preprocessing.
+Values: {values}
+                """
+                )
+
             structure_features[feature] = torch.tensor(values).to(
                 device=self.config.device, dtype=self.config.dtype
             )
@@ -136,9 +146,7 @@ def get_data_splits(config: Config):
     pos_df = read_samples(pos_file, names=columns)
     neg_df = read_samples(neg_file, names=columns)
 
-    tf_len = len(pos_df.iloc[0][TFColumns.SEQ.value]) + 2 * config.context_window * len(
-        config.pred_struct_features
-    )
+    tf_len = len(pos_df.iloc[0][TFColumns.SEQ.value]) + 2 * config.context_window
 
     # now let's create the positive and negative training/testing splits
     pos_dataset = IntervalDataset(pos_df, is_tf_site=1, config=config)

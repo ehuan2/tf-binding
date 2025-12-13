@@ -30,10 +30,21 @@ class MLPModel(BaseModel):
                         # nn.Dropout(0.1),
                         nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
                     )
-                    for _ in range(
-                        len(config.pred_struct_features or []) + config.use_probs
-                    )
+                    for _ in range(len(config.pred_struct_features or []))
                 ]
+            )
+            self.encoders.append(
+                nn.Sequential(
+                    nn.Linear(
+                        tf_len - 2 * config.context_window, config.mlp_hidden_size
+                    ),
+                    nn.ReLU(),
+                    # nn.Dropout(0.1),
+                    nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
+                    nn.ReLU(),
+                    # nn.Dropout(0.1),
+                    nn.Linear(config.mlp_hidden_size, config.mlp_hidden_size),
+                )
             )
             self.config = config
 
@@ -98,7 +109,9 @@ class MLPModel(BaseModel):
         optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=3e-4, weight_decay=1e-5
         )
-        criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor(2.0).to(self.config.device)
+        )
 
         step = 0
         for epoch in range(self.config.epochs):

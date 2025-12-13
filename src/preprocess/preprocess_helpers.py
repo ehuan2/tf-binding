@@ -65,6 +65,12 @@ def get_args():
         nargs="+",
         help="List of bigwig filenames to use for genomic features.",
     )
+    parser.add_argument(
+        "--context_window",
+        type=int,
+        default=0,
+        help="Context window size around the binding site (default: 200).",
+    )
     return parser.parse_args()
 
 

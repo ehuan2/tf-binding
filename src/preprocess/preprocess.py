@@ -459,6 +459,11 @@ def preprocess_bigwigs(args):
     chromosomes = intervals.chromosomes
 
     output_bigwig_dir = os.path.join(args.bigwig_dir, args.tf, "bigwig_processed")
+    if args.context_window != 0:
+        output_bigwig_dir = os.path.join(
+            output_bigwig_dir, f"context_{args.context_window}"
+        )
+
     os.makedirs(output_bigwig_dir, exist_ok=True)
 
     for bigwig_file in args.bigwigs:
@@ -487,9 +492,11 @@ def preprocess_bigwigs(args):
         # now let's iterate through the intervals and extract the values
         for chrom in tqdm(chromosomes):
             chrom_intervals = intervals[intervals[TFColumns.CHROM.value] == chrom]
+            prev_end = 0
             for _, site in chrom_intervals.iterrows():
-                start = site[TFColumns.START.value]
-                end = site[TFColumns.END.value]
+                start = max(site[TFColumns.START.value] - args.context_window, prev_end)
+                end = site[TFColumns.END.value] + args.context_window
+                prev_end = end
                 values = bw_input.values(chrom, start, end)
                 # we have to add everything one by one
                 bw_output.addEntries(
